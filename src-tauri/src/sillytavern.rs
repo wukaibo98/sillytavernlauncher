@@ -23,6 +23,7 @@ use crate::types::{
     TavernThumbnailsConfig, TavernThumbnailsDimensionsConfig,
 };
 use crate::utils::get_config_path;
+use crate::events;
 
 // ─── 内置酒馆路径 ─────────────────────────────────────────────────────────
 
@@ -3433,7 +3434,7 @@ pub async fn start_sillytavern(
                 pkg_list
             ),
         };
-        tracing::info!("emit process-log: {:?}", repair_msg);
+        events::broadcast_str("process-log", repair_msg);
 
         match crate::node::run_npm_install_packages(&app, &st_dir, &missing_packages).await {
             Ok(()) => {
@@ -3443,14 +3444,14 @@ pub async fn start_sillytavern(
                         "INFO: Missing dependencies installed. Continuing startup...".to_string()
                     }
                 };
-                tracing::info!("emit process-log: {:?}", ok_msg);
+                events::broadcast_str("process-log", ok_msg);
             }
             Err(e) => {
                 let err_msg = match lang {
                     Lang::ZhCn => format!("ERROR: 依赖安装失败，启动中止：{}", e),
                     Lang::EnUs => format!("ERROR: Dependency installation failed, aborting: {}", e),
                 };
-                tracing::info!("emit process-log: {:?}", err_msg.clone());
+                events::broadcast_str("process-log", err_msg.clone());
                 return Err(err_msg);
             }
         }
@@ -3887,7 +3888,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
             Lang::ZhCn => format!("INFO: 启动成功! 进程PID: {}", pid),
             Lang::EnUs => format!("INFO: Started successfully! Process PID: {}", pid),
         };
-        tracing::info!("emit process-log: {:?}", msg);
+        events::broadcast_str("process-log", msg);
     }
 
     let stdout = child.stdout.take().ok_or("无法获取标准输出")?;
@@ -3905,7 +3906,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
         let mut network_port_sent = false;
         while let Ok(Some(line)) = reader.next_line().await {
             tracing::info!("ST_STDOUT: {}", line);
-            tracing::info!("emit process-log: {:?}", format!("INFO: {}", line));
+            events::broadcast_str("process-log", format!("INFO: {}", line));
 
             // 桌面程序模式：检测酒馆启动成功后输出的访问地址
             if is_desktop_mode && !desktop_window_opened {
@@ -3913,7 +3914,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
                 if let Some(url) = url_opt {
                     tracing::info!("桌面模式检测到酒馆地址: {}", url);
                     desktop_window_opened = true;
-                    tracing::info!("emit tavern-desktop-ready: {:?}", url);
+                    events::broadcast_str("tavern-desktop-ready", url);
                 }
             }
 
@@ -3938,7 +3939,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
                         "mode": network_mode_str,
                         "port": port,
                     });
-                    tracing::info!("emit tavern-network-ready: {:?}", payload);
+                    events::broadcast("tavern-network-ready", &payload);
                 }
             }
         }
@@ -3962,7 +3963,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
             tracing::error!("ST_STDERR: {}", line);
-            tracing::info!("emit process-log: {:?}", format!("ERROR: {}", line));
+            events::broadcast_str("process-log", format!("ERROR: {}", line));
 
             // 检测 MODULE_NOT_FOUND 错误
             if line.contains("ERR_MODULE_NOT_FOUND")
@@ -4035,7 +4036,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
                 "packages": pkgs,
                 "st_dir": st_dir_for_repair.to_string_lossy(),
             });
-            tracing::info!("emit tavern-missing-dep: {:?}", payload);
+            events::broadcast("tavern-missing-dep", &payload);
         }
     });
 
@@ -4047,12 +4048,12 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
     let child_pid_arc = app.process_state.child_pid.clone();
     tokio::spawn(async move {
         tokio::select! {
-            _ = child.wait() => { tracing::info!("emit process-log: {:?}", "INFO: 进程已退出".to_string()); }
-            _ = kill_rx.recv() => { let _ = child.kill().await; tracing::info!("emit process-log: {:?}", "INFO: 进程已被终止".to_string()); }
+            _ = child.wait() => { events::broadcast_str("process-log", "INFO: 进程已退出".to_string()); }
+            _ = kill_rx.recv() => { let _ = child.kill().await; events::broadcast_str("process-log", "INFO: 进程已被终止".to_string()); }
         }
         *kill_tx_arc.lock().await = None;
         *child_pid_arc.lock().await = None;
-        tracing::info!("emit process-exit: {:?}", ());
+        events::broadcast_str("process-exit", "");
     });
 
     Ok(())
@@ -4894,7 +4895,7 @@ pub async fn repair_missing_deps(
         Lang::ZhCn => format!("INFO: 正在安装运行时缺失包，请稍候：{}", pkg_list),
         Lang::EnUs => format!("INFO: Installing runtime missing packages: {}", pkg_list),
     };
-    tracing::info!("emit process-log: {:?}", msg);
+    events::broadcast_str("process-log", msg);
 
     crate::node::run_npm_install_packages(&app, &dir, &packages).await?;
 
@@ -4902,8 +4903,8 @@ pub async fn repair_missing_deps(
         Lang::ZhCn => "INFO: 缺失包修复完成，即将自动重启酒馆...".to_string(),
         Lang::EnUs => "INFO: Missing packages repaired. Auto-restarting SillyTavern...".to_string(),
     };
-    tracing::info!("emit process-log: {:?}", ok_msg);
-    tracing::info!("emit tavern-dep-repaired: {:?}", ());
+    events::broadcast_str("process-log", ok_msg);
+    events::broadcast_str("tavern-dep-repaired", "");
 
     Ok(())
 }

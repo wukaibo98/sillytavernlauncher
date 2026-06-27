@@ -5,6 +5,7 @@ use crate::config::{get_current_lang, read_app_config_from_disk};
 use crate::types::{Lang, NodeInfo, NpmInfo};
 use crate::utils::get_config_path;
 use crate::state::AppHandle;
+use crate::events;
 
 /// 终止占用指定路径的进程（Windows 使用 PowerShell + taskkill）
 #[cfg(target_os = "windows")]
@@ -469,7 +470,7 @@ pub async fn run_npm_install_packages(
                         Ok(_) => {
                             let t = line.trim_end();
                             if !t.is_empty() {
-                                tracing::info!("emit process-log: {:?}", format!("INFO: [npm] {}", t));
+                                events::broadcast_str("process-log", format!("INFO: [npm] {}", t));
                             }
                         }
                     }
@@ -488,7 +489,7 @@ pub async fn run_npm_install_packages(
                         Ok(_) => {
                             let t = line.trim_end();
                             if !t.is_empty() {
-                                tracing::info!("emit process-log: {:?}", format!("INFO: [npm] {}", t));
+                                events::broadcast_str("process-log", format!("INFO: [npm] {}", t));
                             }
                         }
                     }

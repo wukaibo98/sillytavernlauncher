@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 use crate::state::AppHandle;
+use crate::events;
 
 // ─────────────────────────────────────────────
 // 内部辅助函数
@@ -1025,7 +1026,7 @@ pub async fn install_extension_git(
     tokio::spawn(async move {
         while let Ok(Some(line)) = stdout_reader.next_line().await {
             let now = chrono::Local::now().format("%H:%M:%S").to_string();
-            tracing::info!("emit git-install-log: {:?}", format!("[{}] {}", now, line));
+            events::broadcast_str("git-install-log", format!("[{}] {}", now, line));
         }
     });
 
@@ -1033,7 +1034,7 @@ pub async fn install_extension_git(
     tokio::spawn(async move {
         while let Ok(Some(line)) = stderr_reader.next_line().await {
             let now = chrono::Local::now().format("%H:%M:%S").to_string();
-            tracing::info!("emit git-install-log: {:?}", format!("[{}] {}", now, line));
+            events::broadcast_str("git-install-log", format!("[{}] {}", now, line));
         }
     });
 

@@ -24,6 +24,7 @@ pub struct ScanProgress {
 
 use crate::types::LocalTavernItem;
 use crate::state::AppHandle;
+use crate::events;
 
 static SCAN_CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
 static SCAN_RUNNING_FLAG: AtomicBool = AtomicBool::new(false);
@@ -176,7 +177,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
             let mins = seconds / 60;
             let secs = seconds % 60;
             let time_str = format!("{:02}:{:02}", mins, secs);
-            tracing::info!("emit scan-local-sillytavern-timer: {:?}", time_str);
+            events::broadcast_str("scan-local-sillytavern-timer", time_str);
             sleep(Duration::from_secs(1)).await;
             seconds += 1;
         }

@@ -17,6 +17,7 @@ pub mod worldinfo;
 pub mod secrets;
 pub mod tavern_api;
 pub mod state;
+pub mod events;
 pub mod routes;
 
 // ─────────────────────────────────────────────────────────────
@@ -25,11 +26,15 @@ pub mod routes;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     Router,
     routing::{get, post},
 };
+use axum::response::sse::{Event as AxumSseEvent, KeepAlive, Sse};
+use axum::response::IntoResponse;
+use futures_util::StreamExt;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
@@ -69,8 +74,9 @@ pub async fn run() {
         eprintln!("确保目录结构失败: {e}");
     }
 
-    // 3. 初始化日志
+    // 3. 初始化日志 & SSE 事件广播
     init_logger(&base_path.join("data"));
+    let _ = events::init_events();
     tracing::info!("应用启动（fnOS 移植版）");
 
     // 4. 初始化配置（自动配置内置酒馆和 Node.js）
@@ -205,6 +211,7 @@ fn build_router(state: AppState, base_path: &PathBuf) -> Router {
     );
 
     Router::new()
+        .route("/api/events", get(sse_handler))
         .nest("/api", api_routes)
         .fallback_service(static_service)
         .layer(
@@ -213,4 +220,39 @@ fn build_router(state: AppState, base_path: &PathBuf) -> Router {
                 .allow_methods(Any)
                 .allow_headers(Any),
         )
+}
+
+/// SSE handler: streams events to frontend
+async fn sse_handler() -> impl IntoResponse {
+    let tx = events::init_events();
+    let tx_clone = tx.clone();
+    let rx = tx.subscribe();
+
+    let stream = futures_util::stream::unfold(rx, move |mut rx| {
+        let tx = tx_clone.clone();
+        async move {
+            match rx.recv().await {
+                Ok(ev) => Some((
+                    Ok::<_, std::convert::Infallible>(AxumSseEvent::default()
+                        .event(ev.event)
+                        .data(ev.data)),
+                    rx,
+                )),
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                    rx = tx.subscribe();
+                    Some((
+                        Ok(AxumSseEvent::default().data("reconnected")),
+                        rx,
+                    ))
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => None,
+            }
+        }
+    });
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("ping"),
+    )
 }
