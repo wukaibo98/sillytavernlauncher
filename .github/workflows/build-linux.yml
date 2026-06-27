@@ -2,7 +2,7 @@ name: Build for fnOS (Linux x86_64)
 
 on:
   push:
-    branches: [main, master, release]
+    branches: [main, master, release, fnnas]
   workflow_dispatch:
 
 jobs:
