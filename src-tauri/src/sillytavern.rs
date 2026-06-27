@@ -3,8 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use futures_util::StreamExt;
-use tauri::{AppHandle, Emitter};
-use tauri::Manager;
+
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
 
@@ -28,9 +27,9 @@ use crate::utils::get_config_path;
 // ─── 内置酒馆路径 ─────────────────────────────────────────────────────────
 
 /// 获取内置酒馆的路径
-/// - 生产模式：app.path().resource_dir()/sillytavern
+/// - 生产模式：app.app_data_dir()/sillytavern
 /// - 开发模式：项目根目录/src-tauri/resources/sillytavern-1.18.0
-#[tauri::command]
+#[allow(unused)]
 pub fn get_bundled_tavern_path(app: AppHandle) -> Result<String, String> {
     #[cfg(dev)]
     {
@@ -54,10 +53,7 @@ pub fn get_bundled_tavern_path(app: AppHandle) -> Result<String, String> {
     }
     
     // 生产模式：从 Tauri resource_dir 读取
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| format!("无法获取资源目录: {}", e))?;
+    let resource_dir = app.app_data_dir();
     let bundled = resource_dir.join("sillytavern");
     if bundled.exists() {
         return Ok(bundled.to_string_lossy().to_string());
@@ -329,7 +325,7 @@ enableServerPluginsAutoUpdate: true
 
 // ─── GitHub Releases ────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn fetch_sillytavern_releases() -> Result<Vec<Release>, String> {
     let client = reqwest::Client::builder()
         .user_agent("sillyTavern-launcher")
@@ -346,7 +342,7 @@ pub async fn fetch_sillytavern_releases() -> Result<Vec<Release>, String> {
 
 // ─── 版本列表 ────────────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_installed_sillytavern_versions(app: AppHandle) -> Result<Vec<String>, String> {
     let lang = get_current_lang(&app);
     match lang {
@@ -405,7 +401,7 @@ pub async fn get_installed_sillytavern_versions(app: AppHandle) -> Result<Vec<St
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_installed_versions_info(
     app: AppHandle,
 ) -> Result<Vec<InstalledVersionInfo>, String> {
@@ -473,7 +469,7 @@ pub async fn get_installed_versions_info(
 
 // ─── 版本切换 ────────────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn switch_sillytavern_version(
     app: AppHandle,
     version: crate::types::LocalTavernItem,
@@ -518,19 +514,17 @@ pub async fn switch_sillytavern_version(
 
 // ─── 取消安装 ────────────────────────────────────────────────────────────────
 
-#[tauri::command]
-pub fn cancel_install(state: tauri::State<'_, InstallState>) {
-    state
-        .cancel_flag
-        .store(true, std::sync::atomic::Ordering::Relaxed);
+#[allow(unused)]
+pub fn cancel_install() {
+    // fnOS: cancel not supported without global state
+    tracing::info!("cancel_install called (no-op in fnOS mode)");
 }
 
 // ─── 安装版本 ────────────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn install_sillytavern_version(
     app: AppHandle,
-    state: tauri::State<'_, InstallState>,
     version: String,
     url: String,
 ) -> Result<(), String> {
@@ -560,14 +554,12 @@ pub async fn install_sillytavern_version(
         }
         e.to_string()
     })?;
-    state
+    app.install_state
         .cancel_flag
         .store(false, std::sync::atomic::Ordering::Relaxed);
 
     let emit = |status: &str, progress: f64, log: &str| {
-        let _ = app.emit(
-            "install-progress",
-            DownloadProgress {
+        tracing::info!("emit install-progress: {:?}", DownloadProgress {
                 status: status.to_string(),
                 progress,
                 log: log.to_string(),
@@ -614,7 +606,7 @@ pub async fn install_sillytavern_version(
     let mut last_emit = std::time::Instant::now();
 
     while let Some(item) = stream.next().await {
-        if state.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
+        if app.install_state.cancel_flag.load(std::sync::atomic::Ordering::Relaxed) {
             let _ = tokio::fs::remove_file(&temp_zip).await;
             let _ = tokio::fs::remove_dir_all(&st_dir).await;
             emit(
@@ -677,16 +669,14 @@ pub async fn install_sillytavern_version(
         },
     );
 
-    let cancel_flag = state.cancel_flag.clone();
+    let cancel_flag = app.install_state.cancel_flag.clone();
     let app_clone = app.clone();
     let temp_zip_clone = temp_zip.clone();
     let st_dir_clone = st_dir.clone();
 
     tokio::task::spawn_blocking(move || -> Result<(), String> {
         let emit2 = |status: &str, progress: f64, log: &str| {
-            let _ = app_clone.emit(
-                "install-progress",
-                DownloadProgress {
+            tracing::info!("emit install-progress: {:?}", DownloadProgress {
                     status: status.to_string(),
                     progress,
                     log: log.to_string(),
@@ -768,9 +758,7 @@ pub async fn install_sillytavern_version(
     let version_clone = version.clone();
     tokio::spawn(async move {
         if let Err(e) = run_npm_install(&app2, &st_dir2).await {
-            let _ = app2.emit(
-                "install-progress",
-                DownloadProgress {
+            tracing::info!("emit install-progress: {:?}", DownloadProgress {
                     status: "error".to_string(),
                     progress: 0.0,
                     log: match lang {
@@ -781,9 +769,7 @@ pub async fn install_sillytavern_version(
             );
         } else {
             let _ = generate_default_settings_for_version(&app2, &version_clone);
-            let _ = app2.emit(
-                "install-progress",
-                DownloadProgress {
+            tracing::info!("emit install-progress: {:?}", DownloadProgress {
                     status: "done".to_string(),
                     progress: 1.0,
                     log: match lang {
@@ -800,7 +786,7 @@ pub async fn install_sillytavern_version(
 
 // ─── 单独安装依赖 ─────────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_local_tavern_dependencies(
     _app: AppHandle,
     path: String,
@@ -814,7 +800,7 @@ pub async fn check_local_tavern_dependencies(
     Ok(has_nm)
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn install_sillytavern_dependencies(
     app: AppHandle,
     version: String,
@@ -839,9 +825,7 @@ pub async fn install_sillytavern_dependencies(
     let version_clone = version.clone();
     tokio::spawn(async move {
         if let Err(e) = run_npm_install(&app2, &st_dir).await {
-            let _ = app2.emit(
-                "install-progress",
-                DownloadProgress {
+            tracing::info!("emit install-progress: {:?}", DownloadProgress {
                     status: "error".to_string(),
                     progress: 0.0,
                     log: match lang {
@@ -873,9 +857,7 @@ pub async fn install_sillytavern_dependencies(
             };
 
             let _ = generate_default_settings_for_version(&app2, &actual_version);
-            let _ = app2.emit(
-                "install-progress",
-                DownloadProgress {
+            tracing::info!("emit install-progress: {:?}", DownloadProgress {
                     status: "done".to_string(),
                     progress: 1.0,
                     log: match lang {
@@ -891,7 +873,7 @@ pub async fn install_sillytavern_dependencies(
 
 // ─── 删除版本 ─────────────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn delete_sillytavern_version(app: AppHandle, version: String) -> Result<(), String> {
     let lang = get_current_lang(&app);
     match lang {
@@ -943,9 +925,7 @@ pub async fn delete_sillytavern_version(app: AppHandle, version: String) -> Resu
             }
         }
 
-        let _ = app2.emit(
-            "install-progress",
-            DownloadProgress {
+        tracing::info!("emit install-progress: {:?}", DownloadProgress {
                 status: "deleting".to_string(),
                 progress: 0.1,
                 log: match lang {
@@ -985,9 +965,7 @@ pub async fn delete_sillytavern_version(app: AppHandle, version: String) -> Resu
             let total = samples.len();
             for (i, name) in samples.iter().enumerate() {
                 std::thread::sleep(std::time::Duration::from_millis(15));
-                let _ = app2.emit(
-                    "install-progress",
-                    DownloadProgress {
+                tracing::info!("emit install-progress: {:?}", DownloadProgress {
                         status: "deleting".to_string(),
                         progress: 0.3 + 0.5 * (i as f64 / total as f64),
                         log: match lang {
@@ -1032,9 +1010,7 @@ pub async fn delete_sillytavern_version(app: AppHandle, version: String) -> Resu
                 fs::remove_dir_all(&vdir)?;
             }
         }
-        let _ = app2.emit(
-            "install-progress",
-            DownloadProgress {
+        tracing::info!("emit install-progress: {:?}", DownloadProgress {
                 status: "deleting".to_string(),
                 progress: 1.0,
                 log: match lang {
@@ -1080,7 +1056,7 @@ pub async fn delete_sillytavern_version(app: AppHandle, version: String) -> Resu
 
 // ─── 检查 ST 是否为空 ──────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_sillytavern_empty(app: AppHandle) -> Result<bool, String> {
     let lang = get_current_lang(&app);
     let data_dir = get_config_path(&app)
@@ -1115,7 +1091,7 @@ pub async fn check_sillytavern_empty(app: AppHandle) -> Result<bool, String> {
 
 // ─── 链接已有版本 ──────────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn link_existing_sillytavern(
     app: AppHandle,
     package_json_path: String,
@@ -1238,7 +1214,7 @@ pub async fn link_existing_sillytavern(
 
 // ─── ST 当前版本 ───────────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_tavern_version(app: AppHandle) -> Result<crate::types::LocalTavernItem, String> {
     let _lang = get_current_lang(&app);
     let app2 = app.clone();
@@ -1321,7 +1297,7 @@ fn get_st_global_config_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 // ─── ST Config YAML 读写 ────────────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_sillytavern_config(app: AppHandle, version: String) -> Result<String, String> {
     let lang = get_current_lang(&app);
     let app2 = app.clone();
@@ -1336,7 +1312,7 @@ pub async fn read_sillytavern_config(app: AppHandle, version: String) -> Result<
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn write_sillytavern_config(
     app: AppHandle,
     version: String,
@@ -1355,7 +1331,7 @@ pub async fn write_sillytavern_config(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn get_sillytavern_config_path(app: AppHandle, version: String) -> Result<String, String> {
     let path = get_st_config_path(&app, &version)?;
     Ok(path.to_string_lossy().to_string())
@@ -1831,7 +1807,7 @@ fn child_map<'a>(
         .ok_or(format!("{} 配置格式无效", k))
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_sillytavern_config_options(
     app: AppHandle,
     version: String,
@@ -1850,7 +1826,7 @@ pub async fn get_sillytavern_config_options(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn update_sillytavern_config_options(
     app: AppHandle,
     version: String,
@@ -2165,7 +2141,7 @@ pub async fn update_sillytavern_config_options(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn open_sillytavern_config_file(app: AppHandle, version: String) -> Result<(), String> {
     let path = get_st_config_path(&app, &version)?;
     #[cfg(target_os = "windows")]
@@ -2195,7 +2171,7 @@ pub fn open_sillytavern_config_file(app: AppHandle, version: String) -> Result<(
 
 // ─── 全局配置操作（不需要版本号） ────────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_sillytavern_global_config_options(
     app: AppHandle,
 ) -> Result<TavernConfigPayload, String> {
@@ -2213,7 +2189,7 @@ pub async fn get_sillytavern_global_config_options(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn update_sillytavern_global_config_options(
     app: AppHandle,
     config: TavernConfigPayload,
@@ -2747,7 +2723,7 @@ pub async fn update_sillytavern_global_config_options(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn open_sillytavern_global_config_file(app: AppHandle) -> Result<(), String> {
     let path = get_st_global_config_path(&app)?;
     #[cfg(target_os = "windows")]
@@ -2778,7 +2754,7 @@ pub fn open_sillytavern_global_config_file(app: AppHandle) -> Result<(), String>
 // ─── 配置迁移 ────────────────────────────────────────────────────────────────
 
 /// 返回每个本地酒馆实例下 default/config.yaml 的路径（仅返回实际存在的文件）
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_config_migration_sources(
     app: AppHandle,
 ) -> Result<Vec<serde_json::Value>, String> {
@@ -2810,7 +2786,7 @@ pub async fn list_config_migration_sources(
 }
 
 /// 将指定的 config.yaml 覆盖到 st_data/config.yaml
-#[tauri::command]
+#[allow(unused)]
 pub async fn migrate_tavern_config(app: AppHandle, source_path: String) -> Result<(), String> {
     let lang = get_current_lang(&app);
     let src = PathBuf::from(&source_path);
@@ -2846,6 +2822,7 @@ pub async fn migrate_tavern_config(app: AppHandle, source_path: String) -> Resul
 // ─── 资源迁移 ─────────────────────────────────────────────────────────────────
 
 use crate::types::{ConflictFile, MigrationProgressEvent, ResourceMigrationSource};
+use crate::state::AppHandle;
 
 /// 黑名单：迁移时始终跳过的目录/文件（相对于 data/）
 /// 注意：扩展目录不在此处硬编码，由前端 exclude_categories 动态控制
@@ -2904,7 +2881,7 @@ fn infer_category(rel: &str) -> String {
 }
 
 /// 扫描所有本地酒馆实例，返回拥有 data 目录的来源列表
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_resource_migration_sources(
     app: AppHandle,
 ) -> Result<Vec<ResourceMigrationSource>, String> {
@@ -2938,7 +2915,7 @@ pub async fn list_resource_migration_sources(
 /// `source_paths` 是用户勾选的多个 data 目录的绝对路径
 /// `exclude_categories_per_source` 按 source_paths 顺序，每个来源各自要排除的分类列表
 /// `priority_source_path` 可选，标记优先级来源（扫描时不影响逻辑，仅用于参数对齐）
-#[tauri::command]
+#[allow(unused)]
 pub async fn scan_migration_conflicts(
     app: AppHandle,
     source_paths: Vec<String>,
@@ -3027,7 +3004,7 @@ pub async fn scan_migration_conflicts(
 ///
 /// settings.json 始终进行 JSON 深度合并（不直接覆盖）。
 /// 迁移进度通过 `resource-migration-progress` 事件推送。
-#[tauri::command]
+#[allow(unused)]
 pub async fn execute_resource_migration(
     app: AppHandle,
     source_paths: Vec<String>,
@@ -3038,7 +3015,6 @@ pub async fn execute_resource_migration(
     priority_source_path: Option<String>,
 ) -> Result<(), String> {
     use std::collections::HashSet;
-    use tauri::Emitter;
 
     // 按 index 构建每个来源的排除集合
     let per_source_excluded: Vec<HashSet<String>> = {
@@ -3111,9 +3087,7 @@ pub async fn execute_resource_migration(
     let mut done = 0usize;
 
     let emit_progress = |done: usize, current: &str, finished: bool, error: Option<String>| {
-        let _ = app.emit(
-            "resource-migration-progress",
-            MigrationProgressEvent {
+        tracing::info!("emit resource-migration-progress: {:?}", MigrationProgressEvent {
                 done,
                 total,
                 current: current.to_string(),
@@ -3265,13 +3239,12 @@ pub fn generate_default_settings_for_version(app: &AppHandle, version: &str) -> 
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn start_sillytavern(
     app: AppHandle,
-    state: tauri::State<'_, ProcessState>,
 ) -> Result<(), String> {
     let lang = get_current_lang(&app);
-    let mut kill_tx_guard = state.kill_tx.lock().await;
+    let mut kill_tx_guard = app.process_state.kill_tx.lock().await;
     if kill_tx_guard.is_some() {
         return match lang {
             Lang::ZhCn => Err("进程已经在运行中了".to_string()),
@@ -3460,7 +3433,7 @@ pub async fn start_sillytavern(
                 pkg_list
             ),
         };
-        let _ = app.emit("process-log", repair_msg);
+        tracing::info!("emit process-log: {:?}", repair_msg);
 
         match crate::node::run_npm_install_packages(&app, &st_dir, &missing_packages).await {
             Ok(()) => {
@@ -3470,14 +3443,14 @@ pub async fn start_sillytavern(
                         "INFO: Missing dependencies installed. Continuing startup...".to_string()
                     }
                 };
-                let _ = app.emit("process-log", ok_msg);
+                tracing::info!("emit process-log: {:?}", ok_msg);
             }
             Err(e) => {
                 let err_msg = match lang {
                     Lang::ZhCn => format!("ERROR: 依赖安装失败，启动中止：{}", e),
                     Lang::EnUs => format!("ERROR: Dependency installation failed, aborting: {}", e),
                 };
-                let _ = app.emit("process-log", err_msg.clone());
+                tracing::info!("emit process-log: {:?}", err_msg.clone());
                 return Err(err_msg);
             }
         }
@@ -3907,14 +3880,14 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
         Lang::EnUs => format!("Failed to start: {}", e),
     })?;
 
-    *state.child_pid.lock().await = child.id();
+    *app.process_state.child_pid.lock().await = child.id();
 
     if let Some(pid) = child.id() {
         let msg = match lang {
             Lang::ZhCn => format!("INFO: 启动成功! 进程PID: {}", pid),
             Lang::EnUs => format!("INFO: Started successfully! Process PID: {}", pid),
         };
-        let _ = app.emit("process-log", msg);
+        tracing::info!("emit process-log: {:?}", msg);
     }
 
     let stdout = child.stdout.take().ok_or("无法获取标准输出")?;
@@ -3932,7 +3905,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
         let mut network_port_sent = false;
         while let Ok(Some(line)) = reader.next_line().await {
             tracing::info!("ST_STDOUT: {}", line);
-            let _ = app1.emit("process-log", format!("INFO: {}", line));
+            tracing::info!("emit process-log: {:?}", format!("INFO: {}", line));
 
             // 桌面程序模式：检测酒馆启动成功后输出的访问地址
             if is_desktop_mode && !desktop_window_opened {
@@ -3940,7 +3913,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
                 if let Some(url) = url_opt {
                     tracing::info!("桌面模式检测到酒馆地址: {}", url);
                     desktop_window_opened = true;
-                    let _ = app1.emit("tavern-desktop-ready", url);
+                    tracing::info!("emit tavern-desktop-ready: {:?}", url);
                 }
             }
 
@@ -3965,7 +3938,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
                         "mode": network_mode_str,
                         "port": port,
                     });
-                    let _ = app1.emit("tavern-network-ready", payload);
+                    tracing::info!("emit tavern-network-ready: {:?}", payload);
                 }
             }
         }
@@ -3989,7 +3962,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
             tracing::error!("ST_STDERR: {}", line);
-            let _ = app2.emit("process-log", format!("ERROR: {}", line));
+            tracing::info!("emit process-log: {:?}", format!("ERROR: {}", line));
 
             // 检测 MODULE_NOT_FOUND 错误
             if line.contains("ERR_MODULE_NOT_FOUND")
@@ -4062,7 +4035,7 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
                 "packages": pkgs,
                 "st_dir": st_dir_for_repair.to_string_lossy(),
             });
-            let _ = app2.emit("tavern-missing-dep", payload);
+            tracing::info!("emit tavern-missing-dep: {:?}", payload);
         }
     });
 
@@ -4070,28 +4043,27 @@ console.log('[GitHub Proxy] URL interceptor loaded, proxy:', PROXY_URL);
     *kill_tx_guard = Some(kill_tx);
 
     let app3 = app.clone();
-    let kill_tx_arc = state.inner().kill_tx.clone();
-    let child_pid_arc = state.inner().child_pid.clone();
+    let kill_tx_arc = app.process_state.kill_tx.clone();
+    let child_pid_arc = app.process_state.child_pid.clone();
     tokio::spawn(async move {
         tokio::select! {
-            _ = child.wait() => { let _ = app3.emit("process-log", "INFO: 进程已退出".to_string()); }
-            _ = kill_rx.recv() => { let _ = child.kill().await; let _ = app3.emit("process-log", "INFO: 进程已被终止".to_string()); }
+            _ = child.wait() => { tracing::info!("emit process-log: {:?}", "INFO: 进程已退出".to_string()); }
+            _ = kill_rx.recv() => { let _ = child.kill().await; tracing::info!("emit process-log: {:?}", "INFO: 进程已被终止".to_string()); }
         }
         *kill_tx_arc.lock().await = None;
         *child_pid_arc.lock().await = None;
-        let _ = app3.emit("process-exit", ());
+        tracing::info!("emit process-exit: {:?}", ());
     });
 
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn stop_sillytavern(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, ProcessState>,
+    app: crate::state::AppHandle,
 ) -> Result<(), String> {
-    let mut guard = state.kill_tx.lock().await;
-    let mut pid_guard = state.child_pid.lock().await;
+    let mut guard = app.process_state.kill_tx.lock().await;
+    let mut pid_guard = app.process_state.child_pid.lock().await;
 
     if guard.is_none() && pid_guard.is_none() {
         return Ok(());
@@ -4126,8 +4098,7 @@ pub async fn stop_sillytavern(
     // （加速开 + Node >= 18.19.0 时用的是 --import 拦截器，没有动全局 git config）
     let config = read_app_config_from_disk(&app);
     if config.github_proxy.enable && !config.github_proxy.url.is_empty() {
-        use tauri::Manager;
-        let data_dir = app.path().app_data_dir().unwrap_or_default();
+        let data_dir = app.app_data_dir();
         let node_path = if cfg!(target_os = "windows") {
             data_dir.join("node").join("node.exe")
         } else {
@@ -4149,11 +4120,17 @@ pub async fn stop_sillytavern(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn check_sillytavern_status(
-    state: tauri::State<'_, ProcessState>,
-) -> Result<bool, String> {
-    Ok(state.kill_tx.lock().await.is_some())
+#[allow(unused)]
+pub async fn check_sillytavern_status() -> Result<bool, String> {
+    // fnOS: check if sillytavern process is running via pidfile or port
+    let port = 8000;
+    let output = std::process::Command::new("lsof")
+        .args(["-i", &format!(":{}", port), "-t"])
+        .output();
+    match output {
+        Ok(o) => Ok(!o.stdout.is_empty()),
+        Err(_) => Ok(false),
+    }
 }
 
 /// 从酒馆启动日志中提取 HTTP 访问地址
@@ -4201,83 +4178,18 @@ fn extract_tavern_url(line: &str) -> Option<String> {
 
 /// 桌面程序模式：创建并打开子窗口访问酒馆
 /// 子窗口关闭时，自动停止酒馆服务
-#[tauri::command]
+/// fnOS 移植版：无桌面窗口，此函数为 stub
+#[allow(unused)]
 pub async fn open_tavern_desktop_window(
-    app: AppHandle,
-    state: tauri::State<'_, ProcessState>,
-    url: String,
+    _app: AppHandle,
+    _url: String,
 ) -> Result<(), String> {
-    use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-
-    tracing::info!("打开桌面程序模式窗口: {}", url);
-
-    // 如果已经有同名窗口，直接聚焦
-    if let Some(existing) = app.get_webview_window("sillytavern-desktop") {
-        let _ = existing.set_focus();
-        return Ok(());
-    }
-
-    let tavern_url = WebviewUrl::External(url.parse().map_err(|e| format!("URL 解析失败: {}", e))?);
-
-    let window = WebviewWindowBuilder::new(&app, "sillytavern-desktop", tavern_url)
-        .title("SillyTavern Desktop")
-        .inner_size(1200.0, 800.0)
-        .min_inner_size(800.0, 600.0)
-        .resizable(true)
-        .focused(true)
-        .center()
-        .build()
-        .map_err(|e| format!("创建子窗口失败: {}", e))?;
-
-    // 监听子窗口关闭事件，关闭时自动停止酒馆服务
-    let app_clone = app.clone();
-    let kill_tx_arc = state.inner().kill_tx.clone();
-    let child_pid_arc = state.inner().child_pid.clone();
-    window.on_window_event(move |event| {
-        if let tauri::WindowEvent::Destroyed = event {
-            tracing::info!("桌面程序窗口已关闭，正在停止酒馆服务...");
-            let app2 = app_clone.clone();
-            let kill_tx2 = kill_tx_arc.clone();
-            let child_pid2 = child_pid_arc.clone();
-            tauri::async_runtime::spawn(async move {
-                // 先通知前端：这是主动停止，不要当作异常退出
-                let _ = app2.emit("process-intentional-stop", ());
-
-                // 发送 kill 信号
-                {
-                    let mut guard = kill_tx2.lock().await;
-                    if let Some(tx) = guard.take() {
-                        let _ = tx.send(()).await;
-                    }
-                }
-                // 强制 kill 进程树
-                if let Some(pid) = child_pid2.lock().await.take() {
-                    #[cfg(target_os = "windows")]
-                    {
-                        use std::os::windows::process::CommandExt;
-                        let mut cmd = std::process::Command::new("taskkill");
-                        cmd.args(["/F", "/PID", &pid.to_string(), "/T"])
-                            .creation_flags(0x08000000);
-                        let _ = cmd.output();
-                    }
-                    #[cfg(not(target_os = "windows"))]
-                    {
-                        let _ = std::process::Command::new("kill")
-                            .args(["-9", &pid.to_string()])
-                            .output();
-                    }
-                }
-                tracing::info!("桌面程序模式：酒馆服务已停止");
-                // process-exit 会由 stdout 监听任务自然触发，无需手动 emit
-            });
-        }
-    });
-
-    Ok(())
+    tracing::info!("fnOS: 桌面程序模式窗口不可用（无 Tauri 窗口系统）");
+    Err("桌面程序模式在 fnOS 上不可用".to_string())
 }
 
 /// 获取本机局域网 IPv4 / IPv6 地址列表
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_local_ip_addresses() -> Result<serde_json::Value, String> {
     use std::net::{IpAddr, UdpSocket};
 
@@ -4664,7 +4576,7 @@ fn fmt_ipv6(s: &str) -> String {
 ///         → 全部失败时 fallback 到本地网卡 GUA IPv6
 ///
 /// 注意：preferred 不再由本函数决定，改由 check_network_availability 命令通过 itdog 可用性检测得出
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_public_ip_addresses() -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(4))
@@ -4772,127 +4684,18 @@ fn find_chrome_executable() -> Option<std::path::PathBuf> {
 }
 
 /// 用 Chrome Headless + CDP 跑 itdog TCPing 检测，返回 (total, timeout_count)
+/// fnOS 移植版：headless_chrome 不可用，返回 (0, 0)
 fn itdog_tcping_chrome(
-    chrome_path: &std::path::Path,
-    ip_with_port: &str,
-    is_ipv6: bool,
-    progress_cb: impl Fn(&str),
+    _chrome_path: &std::path::Path,
+    _ip_with_port: &str,
+    _is_ipv6: bool,
+    _progress_cb: impl Fn(&str),
 ) -> (u32, u32) {
-    use headless_chrome::{Browser, LaunchOptions};
-
-    let url_str = if is_ipv6 {
-        format!("https://www.itdog.cn/tcping_ipv6/{}", ip_with_port)
-    } else {
-        format!("https://www.itdog.cn/tcping/{}", ip_with_port)
-    };
-    let proto = if is_ipv6 { "IPv6" } else { "IPv4" };
-
-    tracing::info!("[itdog] {} Chrome Headless 加载: {}", proto, url_str);
-    progress_cb("injecting");
-
-    let browser = match Browser::new(
-        match LaunchOptions::default_builder()
-            .path(Some(chrome_path.to_path_buf()))
-            .headless(true)
-            .build()
-        {
-            Ok(opts) => opts,
-            Err(e) => {
-                tracing::warn!("[itdog] {} LaunchOptions 构建失败: {}", proto, e);
-                return (0, 0);
-            }
-        },
-    ) {
-        Ok(b) => b,
-        Err(e) => {
-            tracing::warn!("[itdog] {} Chrome 启动失败: {}", proto, e);
-            return (0, 0);
-        }
-    };
-
-    let tab = match browser.new_tab() {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::warn!("[itdog] {} 新建 Tab 失败: {}", proto, e);
-            return (0, 0);
-        }
-    };
-
-    if let Err(e) = tab.navigate_to(&url_str) {
-        tracing::warn!("[itdog] {} 页面导航失败: {}", proto, e);
-        return (0, 0);
-    }
-    if let Err(e) = tab.wait_until_navigated() {
-        tracing::warn!("[itdog] {} 等待页面加载失败: {}", proto, e);
-        return (0, 0);
-    }
-
-    // 等待 itdog 自身脚本初始化
-    std::thread::sleep(std::time::Duration::from_secs(3));
-
-    tracing::info!("[itdog] {} 调用 check_form()...", proto);
-    let _ = tab.evaluate("if(typeof check_form==='function')check_form();", false);
-
-    progress_cb("waiting");
-
-    let poll_interval = std::time::Duration::from_millis(1000);
-    let max_wait = std::time::Duration::from_secs(10);
-    let start = std::time::Instant::now();
-
-    loop {
-        std::thread::sleep(poll_interval);
-
-        let total_val = tab
-            .evaluate(
-                "typeof window.check_node_num!=='undefined'?Number(window.check_node_num):0",
-                false,
-            )
-            .ok()
-            .and_then(|v| v.value)
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0) as u32;
-        let finished_val = tab
-            .evaluate(
-                "typeof window.time_out_num!=='undefined'?Number(window.time_out_num):0",
-                false,
-            )
-            .ok()
-            .and_then(|v| v.value)
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0) as u32;
-
-        tracing::info!("[itdog] {} 进度: {}/{}", proto, finished_val, total_val);
-
-        // finished_val = window.time_out_num = 超时节点数（同时也是检测结束的计数）
-        // 完成条件：total > 0 且超时计数 >= 总节点数
-        if total_val > 0 && finished_val >= total_val {
-            tracing::info!(
-                "[itdog] {} 完成: total={}, timeout={}",
-                proto,
-                total_val,
-                finished_val
-            );
-            return (total_val, finished_val);
-        }
-
-        if start.elapsed() >= max_wait {
-            if total_val > 0 {
-                // 已有节点数，用现有超时数（未必跑完，但有参考价值）
-                tracing::warn!(
-                    "[itdog] {} 等待超时（10s），使用现有数据: total={}, timeout={}",
-                    proto,
-                    total_val,
-                    finished_val
-                );
-                return (total_val, finished_val);
-            } else {
-                tracing::warn!("[itdog] {} 等待超时（10s），未获取到任何节点数据", proto);
-                return (0, 0);
-            }
-        }
-    }
+    tracing::warn!("itdog TCPing 在 fnOS 上不可用（无 headless_chrome）");
+    (0, 0)
 }
 
+#[allow(unused)]
 // ─── check_network_availability（Chrome headless 方案见上方 itdog_tcping_chrome）──
 
 // (旧 WebView 方案已移除，Chrome headless 方案见上方 itdog_tcping_chrome)
@@ -4906,7 +4709,7 @@ fn itdog_tcping_chrome(
 ///
 /// ipv4_host / ipv6_host：不带括号的 IP 字符串（如 1.2.3.4 或 2001:db8::1）
 /// port：酒馆端口
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_network_availability(
     app: AppHandle,
     ipv4_host: Option<String>,
@@ -4947,9 +4750,7 @@ pub async fn check_network_availability(
 
     // ── IPv4 检测 ──────────────────────────────────────────────────────────────
     if ipv4_target.is_some() {
-        let _ = app.emit(
-            "itdog-check-progress",
-            serde_json::json!({
+        tracing::info!("emit itdog-check-progress: {:?}", serde_json::json!({
                 "phase": "start", "proto": "IPv4", "ip": ipv4_target.as_deref().unwrap_or(""),
             }),
         );
@@ -4961,9 +4762,7 @@ pub async fn check_network_availability(
         tracing::info!("[itdog] 开始 IPv4 检测: {}", t);
         tokio::task::spawn_blocking(move || {
             itdog_tcping_chrome(&chrome2, &t, false, move |phase| {
-                let _ = app2.emit(
-                    "itdog-check-progress",
-                    serde_json::json!({
+                tracing::info!("emit itdog-check-progress: {:?}", serde_json::json!({
                         "phase": phase, "proto": "IPv4",
                     }),
                 );
@@ -4978,9 +4777,7 @@ pub async fn check_network_availability(
 
     // ── IPv6 检测 ──────────────────────────────────────────────────────────────
     if ipv6_target.is_some() {
-        let _ = app.emit(
-            "itdog-check-progress",
-            serde_json::json!({
+        tracing::info!("emit itdog-check-progress: {:?}", serde_json::json!({
                 "phase": "start", "proto": "IPv6", "ip": ipv6_target.as_deref().unwrap_or(""),
             }),
         );
@@ -4992,9 +4789,7 @@ pub async fn check_network_availability(
         tracing::info!("[itdog] 开始 IPv6 检测: {}", t);
         tokio::task::spawn_blocking(move || {
             itdog_tcping_chrome(&chrome2, &t, true, move |phase| {
-                let _ = app2.emit(
-                    "itdog-check-progress",
-                    serde_json::json!({
+                tracing::info!("emit itdog-check-progress: {:?}", serde_json::json!({
                         "phase": phase, "proto": "IPv6",
                     }),
                 );
@@ -5052,17 +4847,13 @@ pub async fn check_network_availability(
 
     // 发送 done 事件
     if ipv4_target.is_some() {
-        let _ = app.emit(
-            "itdog-check-progress",
-            serde_json::json!({
+        tracing::info!("emit itdog-check-progress: {:?}", serde_json::json!({
                 "phase": "done", "proto": "IPv4", "total": v4_total, "timeout": v4_timeout,
             }),
         );
     }
     if ipv6_target.is_some() {
-        let _ = app.emit(
-            "itdog-check-progress",
-            serde_json::json!({
+        tracing::info!("emit itdog-check-progress: {:?}", serde_json::json!({
                 "phase": "done", "proto": "IPv6", "total": v6_total, "timeout": v6_timeout,
             }),
         );
@@ -5082,7 +4873,7 @@ pub async fn check_network_availability(
 
 /// 修复运行时缺失的 npm 包。
 /// 前端收到 `tavern-missing-dep` 事件后调用此命令，安装成功后 emit `tavern-dep-repaired`。
-#[tauri::command]
+#[allow(unused)]
 pub async fn repair_missing_deps(
     app: AppHandle,
     packages: Vec<String>,
@@ -5090,7 +4881,6 @@ pub async fn repair_missing_deps(
 ) -> Result<(), String> {
     use crate::config::get_current_lang;
     use crate::types::Lang;
-    use tauri::Emitter;
 
     let lang = get_current_lang(&app);
     let dir = std::path::PathBuf::from(&st_dir);
@@ -5104,7 +4894,7 @@ pub async fn repair_missing_deps(
         Lang::ZhCn => format!("INFO: 正在安装运行时缺失包，请稍候：{}", pkg_list),
         Lang::EnUs => format!("INFO: Installing runtime missing packages: {}", pkg_list),
     };
-    let _ = app.emit("process-log", msg);
+    tracing::info!("emit process-log: {:?}", msg);
 
     crate::node::run_npm_install_packages(&app, &dir, &packages).await?;
 
@@ -5112,8 +4902,8 @@ pub async fn repair_missing_deps(
         Lang::ZhCn => "INFO: 缺失包修复完成，即将自动重启酒馆...".to_string(),
         Lang::EnUs => "INFO: Missing packages repaired. Auto-restarting SillyTavern...".to_string(),
     };
-    let _ = app.emit("process-log", ok_msg);
-    let _ = app.emit("tavern-dep-repaired", ());
+    tracing::info!("emit process-log: {:?}", ok_msg);
+    tracing::info!("emit tavern-dep-repaired: {:?}", ());
 
     Ok(())
 }

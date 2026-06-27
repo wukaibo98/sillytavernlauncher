@@ -2,12 +2,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use sys_locale::get_locale;
-use tauri::{
-    AppHandle, Manager, PhysicalPosition, PhysicalSize, Position, WebviewWindow, WindowEvent,
-};
 
 use crate::types::{AppConfig, GithubProxyConfig, Lang};
 use crate::utils::get_config_path;
+use crate::state::AppHandle;
 
 // ─────────────────────────────────────────────
 // Lang 实现
@@ -156,110 +154,16 @@ pub fn write_app_config_to_disk(app: &AppHandle, config: &AppConfig) -> Result<(
 // 窗口位置
 // ─────────────────────────────────────────────
 
-fn clamp_window_position(
-    window: &WebviewWindow,
-    target: PhysicalPosition<i32>,
-    saved_size: Option<PhysicalSize<u32>>,
-) -> PhysicalPosition<i32> {
-    let Ok(monitors) = window.available_monitors() else {
-        return target;
-    };
-
-    let mut clamped = target;
-    let size =
-        saved_size.unwrap_or_else(|| window.outer_size().unwrap_or(PhysicalSize::new(1200, 800)));
-    let width = size.width as i32;
-    let height = size.height as i32;
-
-    for monitor in monitors {
-        let area = monitor.position();
-        let monitor_size = monitor.size();
-        let mx = area.x;
-        let my = area.y;
-        let mw = monitor_size.width as i32;
-        let mh = monitor_size.height as i32;
-
-        let max_x = mx + mw - width.max(0);
-        let max_y = my + mh - height.max(0);
-
-        if target.x >= mx && target.x <= max_x && target.y >= my && target.y <= max_y {
-            return target;
-        }
-
-        // Safe clamp: if max < min (window larger than monitor), use min
-        let safe_clamp = |val: i32, min: i32, max: i32| -> i32 {
-            if min > max { min } else { val.clamp(min, max) }
-        };
-        clamped.x = safe_clamp(clamped.x, mx, max_x);
-        clamped.y = safe_clamp(clamped.y, my, max_y);
-    }
-
-    clamped
-}
-
-pub fn apply_saved_window_position(app: &AppHandle) {
-    let config = read_app_config_from_disk(app);
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-
-    if config.remember_window_position {
-        if let Some(position) = config.window_position {
-            let saved_size = match (position.width, position.height) {
-                (Some(w), Some(h)) if w > 0 && h > 0 => Some(PhysicalSize::new(w as u32, h as u32)),
-                _ => None,
-            };
-            let clamped = clamp_window_position(
-                &window,
-                PhysicalPosition::new(position.x, position.y),
-                saved_size,
-            );
-            let _ = window.set_position(Position::Physical(clamped));
-            if let Some(size) = saved_size {
-                let _ = window.set_size(size);
-            }
-            return;
-        }
-    }
-
-    // 默认居中
-    let _ = window.center();
-}
-
-pub fn setup_window_position_tracking(app: &AppHandle) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    let app_handle = app.clone();
-    let window_clone = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { .. } = event {
-            let mut config = read_app_config_from_disk(&app_handle);
-            if !config.remember_window_position {
-                return;
-            }
-            if let Ok(position) = window_clone.outer_position() {
-                let size = window_clone
-                    .outer_size()
-                    .unwrap_or(PhysicalSize::new(1200, 800));
-                let clamped = clamp_window_position(&window_clone, position, Some(size));
-                config.window_position = Some(crate::types::WindowPosition {
-                    x: clamped.x,
-                    y: clamped.y,
-                    width: Some(size.width as i32),
-                    height: Some(size.height as i32),
-                });
-                let _ = write_app_config_to_disk(&app_handle, &config);
-            }
-        }
-    });
-}
+// fnOS: Window management not applicable — stubbed out
+fn clamp_window_position() { }
+pub fn apply_saved_window_position(_app: &AppHandle) { }
+pub fn setup_window_position_tracking(_app: &AppHandle) { }
 
 // ─────────────────────────────────────────────
 // Tauri commands
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_app_config(app: AppHandle) -> Result<AppConfig, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || Ok(read_app_config_from_disk(&app_clone)))
@@ -267,7 +171,7 @@ pub async fn get_app_config(app: AppHandle) -> Result<AppConfig, String> {
         .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn save_app_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || write_app_config_to_disk(&app_clone, &config))
@@ -275,12 +179,12 @@ pub async fn save_app_config(app: AppHandle, config: AppConfig) -> Result<(), St
         .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
-pub fn get_app_version(app: AppHandle) -> String {
-    app.package_info().version.to_string()
+#[allow(unused)]
+pub fn get_app_version(_app: AppHandle) -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn open_directory(
     app: AppHandle,
     dir_type: String,
@@ -421,7 +325,7 @@ const FALLBACK_PROXIES: &[&str] = &[
     "https://gh.llkk.cc/",
 ];
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn fetch_github_proxies() -> Result<Vec<crate::types::ProxyItem>, String> {
     let client = reqwest::Client::builder()
         .user_agent("sillyTavern-launcher")
@@ -502,12 +406,12 @@ async fn use_fallback_proxies(client: &reqwest::Client) -> Vec<crate::types::Pro
     proxies
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn get_system_cpu_cores() -> usize {
     num_cpus::get()
 }
@@ -677,7 +581,7 @@ pub(crate) fn read_windows_system_proxy() -> Option<(String, bool)> {
 
 /// 获取系统代理信息（供前端展示用）
 /// 返回 { server: "host:port", enabled: bool }；系统无代理设置返回 null
-#[tauri::command]
+#[allow(unused)]
 pub fn get_system_proxy_info() -> Option<serde_json::Value> {
     read_windows_system_proxy()
         .map(|(server, enabled)| serde_json::json!({ "server": server, "enabled": enabled }))
@@ -685,7 +589,7 @@ pub fn get_system_proxy_info() -> Option<serde_json::Value> {
 
 /// 测试代理连通性，返回延迟 ms；失败返回错误字符串
 /// mode: "none" | "system" | "custom"
-#[tauri::command]
+#[allow(unused)]
 pub async fn test_network_proxy(mode: String, host: String, port: u16) -> Result<u64, String> {
     let mut builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(8));
 
@@ -764,7 +668,7 @@ pub async fn test_network_proxy(mode: String, host: String, port: u16) -> Result
 /// 测试 GitHub 连接是否可达（考虑代理设置）
 /// mode: "none" | "system" | "custom" | "proxy"
 /// 当 mode 为 "proxy" 时，host 参数应传入 GitHub 加速地址
-#[tauri::command]
+#[allow(unused)]
 pub async fn test_github_connection(
     app: AppHandle,
     mode: String,
@@ -887,7 +791,7 @@ pub struct GithubTestResultItem {
 /// - "proxy": 代理模式，使用 GitHub 加速地址作为代理
 /// - "custom" / "system" / "none": 直连或自定义代理模式
 /// include_api: 是否包含 api.github.com 测试（仅非加速模式生效）
-#[tauri::command]
+#[allow(unused)]
 pub async fn test_github_multi(
     app: AppHandle,
     mode: String,
@@ -1569,7 +1473,7 @@ pub struct DownloadSpeedResult {
 /// mode: "direct" | "accelerate"
 /// - "direct": 直连测试
 /// - "accelerate": 加速地址 + 目标 URL
-#[tauri::command]
+#[allow(unused)]
 pub async fn test_download_speed(
     mode: String,
     host: String,

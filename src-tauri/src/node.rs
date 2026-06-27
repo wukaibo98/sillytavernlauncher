@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use tauri::AppHandle;
 
 use crate::config::{get_current_lang, read_app_config_from_disk};
 use crate::types::{Lang, NodeInfo, NpmInfo};
 use crate::utils::get_config_path;
+use crate::state::AppHandle;
 
 /// 终止占用指定路径的进程（Windows 使用 PowerShell + taskkill）
 #[cfg(target_os = "windows")]
@@ -152,7 +152,6 @@ pub fn get_npm_install_command(data_dir: &Path, registry: &str) -> Option<(PathB
 
 pub async fn run_npm_install(app: &AppHandle, target_dir: &Path) -> Result<(), String> {
     use std::process::Stdio;
-    use tauri::Emitter;
     use tokio::io::AsyncBufReadExt;
     use tokio::process::Command;
 
@@ -189,9 +188,7 @@ pub async fn run_npm_install(app: &AppHandle, target_dir: &Path) -> Result<(), S
     let npm_cmd = get_npm_install_command(&data_dir, &registry);
 
     let emit_progress = |status: &str, progress: f64, log: &str| {
-        let _ = app.emit(
-            "install-progress",
-            crate::types::DownloadProgress {
+        tracing::info!("emit install-progress: {:?}", crate::types::DownloadProgress {
                 status: status.to_string(),
                 progress,
                 log: log.to_string(),
@@ -395,7 +392,6 @@ pub async fn run_npm_install_packages(
     packages: &[String],
 ) -> Result<(), String> {
     use std::process::Stdio;
-    use tauri::Emitter;
     use tokio::io::AsyncBufReadExt;
     use tokio::process::Command;
 
@@ -473,7 +469,7 @@ pub async fn run_npm_install_packages(
                         Ok(_) => {
                             let t = line.trim_end();
                             if !t.is_empty() {
-                                let _ = app_c.emit("process-log", format!("INFO: [npm] {}", t));
+                                tracing::info!("emit process-log: {:?}", format!("INFO: [npm] {}", t));
                             }
                         }
                     }
@@ -492,7 +488,7 @@ pub async fn run_npm_install_packages(
                         Ok(_) => {
                             let t = line.trim_end();
                             if !t.is_empty() {
-                                let _ = app_c2.emit("process-log", format!("INFO: [npm] {}", t));
+                                tracing::info!("emit process-log: {:?}", format!("INFO: [npm] {}", t));
                             }
                         }
                     }
@@ -535,7 +531,7 @@ pub async fn run_npm_install_packages(
 // Tauri commands
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_nodejs(app: AppHandle) -> Result<NodeInfo, String> {
     let lang = get_current_lang(&app);
     match lang {
@@ -664,7 +660,7 @@ pub async fn check_nodejs(app: AppHandle) -> Result<NodeInfo, String> {
 }
 
 /// 同时检测系统 Node 和内置 Node，用于前端展示切换按钮
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_nodejs_both(app: AppHandle) -> Result<serde_json::Value, String> {
     let data_dir = get_config_path(&app)
         .parent()
@@ -769,7 +765,7 @@ pub async fn check_nodejs_both(app: AppHandle) -> Result<serde_json::Value, Stri
     }))
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_npm(app: AppHandle) -> Result<NpmInfo, String> {
     let lang = get_current_lang(&app);
     match lang {
@@ -933,12 +929,11 @@ pub async fn check_npm(app: AppHandle) -> Result<NpmInfo, String> {
     })
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn install_nodejs(app: AppHandle) -> Result<(), String> {
     use crate::git::INSTALL_CANCEL_FLAG;
     use futures_util::StreamExt;
     use std::sync::atomic::Ordering;
-    use tauri::Emitter;
 
     // 重置取消标志
     INSTALL_CANCEL_FLAG.store(false, Ordering::SeqCst);
@@ -986,9 +981,7 @@ pub async fn install_nodejs(app: AppHandle) -> Result<(), String> {
     let node_dir = data_dir.join("node");
 
     let emit_progress = |status: &str, progress: f64, log: &str| {
-        let _ = app.emit(
-            "download-progress",
-            crate::types::DownloadProgress {
+        tracing::info!("emit download-progress: {:?}", crate::types::DownloadProgress {
                 status: status.to_string(),
                 progress,
                 log: log.to_string(),
@@ -1254,9 +1247,7 @@ pub async fn install_nodejs(app: AppHandle) -> Result<(), String> {
 
     let _extract_result = tokio::task::spawn_blocking(move || -> Result<(), String> {
         let emit_progress = |status: &str, progress: f64, log: &str| {
-            let _ = app_clone.emit(
-                "download-progress",
-                crate::types::DownloadProgress {
+            tracing::info!("emit download-progress: {:?}", crate::types::DownloadProgress {
                     status: status.to_string(),
                     progress,
                     log: log.to_string(),

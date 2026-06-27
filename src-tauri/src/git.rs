@@ -3,7 +3,7 @@ use crate::types::{DownloadProgress, GitInfo, Lang};
 use crate::utils::get_config_path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter};
+use crate::state::AppHandle;
 
 /// Git/Node 安装取消标志（全局，跨 git.rs 和 node.rs 共用）
 pub static INSTALL_CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
@@ -46,7 +46,7 @@ async fn kill_processes_using_path(_path: &PathBuf) -> Result<(), String> {
 }
 
 /// 取消当前 Git 或 Node.js 安装/下载
-#[tauri::command]
+#[allow(unused)]
 pub fn cancel_git_node_install() -> Result<(), String> {
     INSTALL_CANCEL_FLAG.store(true, Ordering::SeqCst);
     Ok(())
@@ -110,7 +110,7 @@ pub fn get_git_exe(app: &AppHandle) -> PathBuf {
 }
 
 /// 同时检测系统 Git 和内置 Git，用于前端展示切换按钮
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_git_both(app: AppHandle) -> Result<serde_json::Value, String> {
     let local_path = local_git_path(&app);
 
@@ -207,7 +207,7 @@ pub async fn check_git_both(app: AppHandle) -> Result<serde_json::Value, String>
     Ok(serde_json::json!({ "system": system_git, "local": local_git }))
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn check_git(app: AppHandle) -> Result<GitInfo, String> {
     // 直接复用 get_git_exe 获取实际可用的 git 可执行文件路径，
     // 保证检测结果与实际使用（clone/install 等操作）完全一致。
@@ -284,7 +284,7 @@ pub async fn check_git(app: AppHandle) -> Result<GitInfo, String> {
     })
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn install_git(app: AppHandle) -> Result<(), String> {
     let lang = get_current_lang(&app);
     let os = std::env::consts::OS;
@@ -293,9 +293,7 @@ pub async fn install_git(app: AppHandle) -> Result<(), String> {
     INSTALL_CANCEL_FLAG.store(false, Ordering::SeqCst);
 
     let emit_progress = |status: &str, progress: f64, log: &str| {
-        let _ = app.emit(
-            "download-progress",
-            DownloadProgress {
+        tracing::info!("emit download-progress: {:?}", DownloadProgress {
                 status: status.to_string(),
                 progress,
                 log: log.to_string(),
@@ -309,9 +307,7 @@ pub async fn install_git(app: AppHandle) -> Result<(), String> {
         let mingit_result = async move {
             let app = app_clone_mingit;
             let emit_progress = |status: &str, progress: f64, log: &str| {
-                let _ = app.emit(
-                    "download-progress",
-                    DownloadProgress {
+                tracing::info!("emit download-progress: {:?}", DownloadProgress {
                         status: status.to_string(),
                         progress,
                         log: log.to_string(),
@@ -548,9 +544,7 @@ pub async fn install_git(app: AppHandle) -> Result<(), String> {
 
             let _extract_result = tokio::task::spawn_blocking(move || -> Result<(), String> {
                 let emit_progress = |status: &str, progress: f64, log: &str| {
-                    let _ = app_clone.emit(
-                        "download-progress",
-                        crate::types::DownloadProgress {
+                    tracing::info!("emit download-progress: {:?}", crate::types::DownloadProgress {
                             status: status.to_string(),
                             progress,
                             log: log.to_string(),

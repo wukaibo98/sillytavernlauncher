@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tauri::AppHandle;
 
 use crate::types::WorldInfoFile;
+use crate::state::AppHandle;
 
 // ─────────────────────────────────────────────
 // 内部辅助：世界书目录
@@ -18,7 +18,7 @@ fn get_world_infos_dir(app: &AppHandle) -> PathBuf {
 // Tauri commands
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_world_infos(app: AppHandle) -> Result<Vec<WorldInfoFile>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -79,7 +79,7 @@ pub async fn list_world_infos(app: AppHandle) -> Result<Vec<WorldInfoFile>, Stri
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_world_info(app: AppHandle, file_name: String) -> Result<String, String> {
     if file_name.trim().is_empty() {
         return Err("文件名不能为空".to_string());
@@ -104,7 +104,7 @@ pub async fn read_world_info(app: AppHandle, file_name: String) -> Result<String
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn delete_world_infos(app: AppHandle, file_names: Vec<String>) -> Result<(), String> {
     if file_names.is_empty() {
         return Ok(());
@@ -143,7 +143,7 @@ pub async fn delete_world_infos(app: AppHandle, file_names: Vec<String>) -> Resu
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_world_info(app: AppHandle, source_path: String) -> Result<(), String> {
     if source_path.trim().is_empty() {
         return Err("源路径不能为空".to_string());
@@ -189,7 +189,7 @@ pub async fn import_world_info(app: AppHandle, source_path: String) -> Result<()
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_world_info_from_bytes(
     app: AppHandle,
     bytes: Vec<u8>,

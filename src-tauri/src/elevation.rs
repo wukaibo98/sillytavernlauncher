@@ -1,10 +1,10 @@
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::process::Command;
-use tauri::AppHandle;
+use crate::state::AppHandle;
 
 /// 检查当前进程是否具有管理员权限
-#[tauri::command]
+#[allow(unused)]
 pub fn is_elevated() -> bool {
     #[cfg(target_os = "windows")]
     {
@@ -39,7 +39,7 @@ pub fn is_elevated() -> bool {
 }
 
 /// 以管理员权限重新启动应用程序
-#[tauri::command]
+#[allow(unused)]
 pub fn elevate_process(_app: AppHandle) -> Result<(), String> {
     // 只有在 Windows 下才获取当前路径，避免 Unix 系统下的 unused_variable 警告
     #[cfg(target_os = "windows")]

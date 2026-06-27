@@ -6,11 +6,13 @@ use tokio::sync::Mutex;
 // 进程 / 安装状态
 // ─────────────────────────────────────────────
 
+#[derive(Clone)]
 pub struct ProcessState {
     pub kill_tx: Arc<Mutex<Option<tokio::sync::mpsc::Sender<()>>>>,
     pub child_pid: Arc<Mutex<Option<u32>>>,
 }
 
+#[derive(Clone)]
 pub struct InstallState {
     pub cancel_flag: Arc<std::sync::atomic::AtomicBool>,
     /// 当前正在运行的 git 子进程 PID（install_extension_git / repair_extension_git 的 git clone/fetch）
@@ -22,7 +24,7 @@ pub struct InstallState {
 // 下载进度
 // ─────────────────────────────────────────────
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DownloadProgress {
     pub status: String,
     pub progress: f64,

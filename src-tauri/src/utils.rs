@@ -7,6 +7,7 @@ use std::time::Duration;
 use tracing_subscriber::{filter::EnvFilter, layer::SubscriberExt, Registry};
 
 use crate::types::AppConfig;
+use crate::state::AppHandle;
 
 
 // ─────────────────────────────────────────────
@@ -19,7 +20,7 @@ pub struct GithubProxy {
 }
 
 impl GithubProxy {
-    pub async fn new(app: &tauri::AppHandle) -> Self {
+    pub async fn new(app: &crate::state::AppHandle) -> Self {
         let config = crate::config::read_app_config_from_disk(app);
         let mut mirrors = vec!["".to_string()]; // 原始链接
 
@@ -225,13 +226,11 @@ pub fn ensure_standard_layout(base_dir: &Path) -> io::Result<()> {
 // ─────────────────────────────────────────────
 
 #[allow(unused_variables)]
-pub fn get_config_path(app: &tauri::AppHandle) -> PathBuf {
+pub fn get_config_path(app: &crate::state::AppHandle) -> PathBuf {
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     {
-        use tauri::Manager;
-        if let Ok(app_data_dir) = app.path().app_data_dir() {
-            return PathBuf::from(app_data_dir.to_string_lossy().to_string()).join("data/config.json");
-        }
+        let app_data_dir = app.app_data_dir();
+        return app_data_dir.join("data/config.json");
     }
 
     #[cfg(debug_assertions)]
@@ -254,7 +253,7 @@ pub fn get_config_path(app: &tauri::AppHandle) -> PathBuf {
 }
 
 #[cfg(target_os = "macos")]
-pub fn migrate_macos_data_if_needed(_app: &tauri::AppHandle, new_base: &Path) -> Result<(), String> {
+pub fn migrate_macos_data_if_needed(_app: &crate::state::AppHandle, new_base: &Path) -> Result<(), String> {
     use std::fs::{create_dir_all, read_dir, remove_dir_all, rename};
 
     let new_data_dir = new_base.join("data");
@@ -313,7 +312,7 @@ pub fn migrate_macos_data_if_needed(_app: &tauri::AppHandle, new_base: &Path) ->
     Ok(())
 }
 
-pub fn get_st_data_dir(app: &tauri::AppHandle) -> PathBuf {
+pub fn get_st_data_dir(app: &crate::state::AppHandle) -> PathBuf {
     let data_dir = get_config_path(app)
         .parent()
         .unwrap_or(&PathBuf::from("."))
@@ -334,10 +333,8 @@ pub fn get_st_data_dir(app: &tauri::AppHandle) -> PathBuf {
 
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     {
-        use tauri::Manager;
-        if let Ok(app_data_dir) = app.path().app_data_dir() {
-            return PathBuf::from(app_data_dir.to_string_lossy().to_string()).join("data/st_data");
-        }
+        let app_data_dir = app.app_data_dir();
+        return app_data_dir.join("data/st_data");
     }
 
     data_dir.join("st_data")

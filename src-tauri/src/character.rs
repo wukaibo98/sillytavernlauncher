@@ -1,10 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tauri::AppHandle;
-use tauri::Manager;
 
 use crate::types::CharacterCardFile;
+use crate::state::AppHandle;
 
 // ─────────────────────────────────────────────
 // 内部辅助：角色卡目录
@@ -19,7 +18,7 @@ fn get_character_cards_dir(app: &AppHandle) -> PathBuf {
 // Tauri commands
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_character_card_pngs(app: AppHandle) -> Result<Vec<CharacterCardFile>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -81,7 +80,7 @@ pub async fn list_character_card_pngs(app: AppHandle) -> Result<Vec<CharacterCar
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_character_card_png(app: AppHandle, file_name: String) -> Result<Vec<u8>, String> {
     if file_name.trim().is_empty() {
         return Err("文件名不能为空".to_string());
@@ -106,7 +105,7 @@ pub async fn read_character_card_png(app: AppHandle, file_name: String) -> Resul
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn delete_character_cards(app: AppHandle, file_names: Vec<String>) -> Result<(), String> {
     if file_names.is_empty() {
         return Ok(());
@@ -145,7 +144,7 @@ pub async fn delete_character_cards(app: AppHandle, file_names: Vec<String>) -> 
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_character_card(app: AppHandle, source_path: String) -> Result<(), String> {
     if source_path.trim().is_empty() {
         return Err("源路径不能为空".to_string());
@@ -191,7 +190,7 @@ pub async fn import_character_card(app: AppHandle, source_path: String) -> Resul
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_local_file(path: String) -> Result<Vec<u8>, String> {
     tokio::task::spawn_blocking(move || {
         let file_path = PathBuf::from(&path);
@@ -203,7 +202,7 @@ pub async fn read_local_file(path: String) -> Result<Vec<u8>, String> {
     .await
     .map_err(|e| e.to_string())?
 }
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_character_card_from_bytes(
     app: AppHandle,
     bytes: Vec<u8>,
@@ -252,10 +251,8 @@ pub async fn import_character_card_from_bytes(
 // ─────────────────────────────────────────────
 
 fn get_bundled_presets_dir(app: &AppHandle) -> PathBuf {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .unwrap_or_else(|_| PathBuf::from("."));
+    let resource_dir = app.app_data_dir()
+        ;
     resource_dir.join("presets")
 }
 
@@ -264,7 +261,7 @@ fn get_user_presets_dir(app: &AppHandle) -> PathBuf {
     data_dir.join("default-user").join("settings")
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_bundled_presets(app: AppHandle) -> Result<Vec<CharacterCardFile>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -336,7 +333,7 @@ pub async fn list_bundled_presets(app: AppHandle) -> Result<Vec<CharacterCardFil
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_bundled_preset(
     app: AppHandle,
     category: String,
@@ -379,14 +376,12 @@ pub async fn import_bundled_preset(
 }
 
 fn get_bundled_cards_dir(app: &AppHandle) -> PathBuf {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .unwrap_or_else(|_| PathBuf::from("."));
+    let resource_dir = app.app_data_dir()
+        ;
     resource_dir.join("character-cards")
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_bundled_cards(app: AppHandle) -> Result<Vec<CharacterCardFile>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -458,7 +453,7 @@ pub async fn list_bundled_cards(app: AppHandle) -> Result<Vec<CharacterCardFile>
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_bundled_card_thumb(
     app: AppHandle,
     category: String,
@@ -487,7 +482,7 @@ pub async fn read_bundled_card_thumb(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_bundled_card(
     app: AppHandle,
     category: String,

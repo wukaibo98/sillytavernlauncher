@@ -1,9 +1,9 @@
 use crate::types::{ExtensionInfo, ExtensionManifest};
 use crate::utils::get_config_path;
 use std::path::PathBuf;
-use tauri::Emitter;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
+use crate::state::AppHandle;
 
 // ─────────────────────────────────────────────
 // 内部辅助函数
@@ -49,7 +49,7 @@ fn get_st_dir(
 // Tauri commands
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub fn verify_extension_zip(zip_path: String) -> Result<ExtensionManifest, String> {
     let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
@@ -71,9 +71,9 @@ pub fn verify_extension_zip(zip_path: String) -> Result<ExtensionManifest, Strin
     Err("未在压缩包中找到 manifest.json 文件，这不是一个有效的扩展".to_string())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn install_extension_zip(
-    app: tauri::AppHandle,
+    app: crate::state::AppHandle,
     zip_path: String,
     scope: String,
     version: crate::types::LocalTavernItem,
@@ -258,9 +258,9 @@ pub async fn install_extension_zip(
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn get_extensions(
-    app: tauri::AppHandle,
+    app: crate::state::AppHandle,
     version: crate::types::LocalTavernItem,
 ) -> Result<Vec<ExtensionInfo>, String> {
     tracing::info!("获取扩展列表，当前酒馆版本: {}", version.version);
@@ -421,9 +421,9 @@ pub async fn get_extensions(
     })?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn toggle_extension_enable(
-    _app: tauri::AppHandle,
+    _app: crate::state::AppHandle,
     _id: String,
     enable: bool,
     dir_path: String,
@@ -469,9 +469,9 @@ pub fn toggle_extension_enable(
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn delete_extension(
-    _app: tauri::AppHandle,
+    _app: crate::state::AppHandle,
     _id: String,
     dir_path: String,
 ) -> Result<(), String> {
@@ -491,9 +491,9 @@ pub fn delete_extension(
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn toggle_extension_auto_update(
-    _app: tauri::AppHandle,
+    _app: crate::state::AppHandle,
     _id: String,
     auto_update: bool,
     dir_path: String,
@@ -544,9 +544,9 @@ pub fn toggle_extension_auto_update(
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn open_extension_folder(
-    app: tauri::AppHandle,
+    app: crate::state::AppHandle,
     scope: String,
     version: crate::types::LocalTavernItem,
 ) -> Result<(), String> {
@@ -602,9 +602,9 @@ pub fn open_extension_folder(
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub fn open_specific_extension_folder(
-    _app: tauri::AppHandle,
+    _app: crate::state::AppHandle,
     dir_path: String,
 ) -> Result<(), String> {
     let extension_dir = PathBuf::from(&dir_path);
@@ -638,7 +638,7 @@ pub fn open_specific_extension_folder(
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn verify_extension_zip_from_bytes(bytes: Vec<u8>) -> Result<ExtensionManifest, String> {
     tokio::task::spawn_blocking(move || {
         let reader = std::io::Cursor::new(bytes);
@@ -666,9 +666,9 @@ pub async fn verify_extension_zip_from_bytes(bytes: Vec<u8>) -> Result<Extension
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn install_extension_zip_from_bytes(
-    app: tauri::AppHandle,
+    app: crate::state::AppHandle,
     bytes: Vec<u8>,
     filename: String,
     scope: String,
@@ -849,9 +849,7 @@ pub async fn install_extension_zip_from_bytes(
                 Ok(true) => tracing::info!("自动修复 Git 环境成功（在线）"),
                 Ok(false) => tracing::info!("自动修复 Git 环境完成（离线保底）"),
                 Err(e) => {
-                    let _ = app.emit(
-                        "git-install-log",
-                        format!(
+                    tracing::info!("emit git-install-log: {:?}", format!(
                             "[{}] ! 自动修复 Git 环境失败: {}",
                             chrono::Local::now().format("%H:%M:%S"),
                             e
@@ -867,10 +865,9 @@ pub async fn install_extension_zip_from_bytes(
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn install_extension_git(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, crate::types::InstallState>,
+    app: crate::state::AppHandle,
     url: String,
     branch_opt: Option<String>,
     scope: String,
@@ -884,9 +881,7 @@ pub async fn install_extension_git(
         version.version
     );
     let start_time = chrono::Local::now().format("%H:%M:%S").to_string();
-    let _ = app.emit(
-        "git-install-log",
-        format!("[{}] > 初始化安装环境...", start_time),
+    tracing::info!("emit git-install-log: {:?}", format!("[{}] > 初始化安装环境...", start_time),
     );
 
     let app_handle = app.clone();
@@ -939,9 +934,7 @@ pub async fn install_extension_git(
     }
 
     let target_dir = target_parent.join(&repo_name);
-    let _ = app.emit(
-        "git-install-log",
-        format!(
+    tracing::info!("emit git-install-log: {:?}", format!(
             "[{}] > 目标路径: {}",
             chrono::Local::now().format("%H:%M:%S"),
             target_dir.display()
@@ -949,9 +942,7 @@ pub async fn install_extension_git(
     );
 
     if target_dir.exists() {
-        let _ = app.emit(
-            "git-install-log",
-            format!(
+        tracing::info!("emit git-install-log: {:?}", format!(
                 "[{}] ! 错误: 目录已存在",
                 chrono::Local::now().format("%H:%M:%S")
             ),
@@ -988,18 +979,14 @@ pub async fn install_extension_git(
         // 公开的 GitHub 仓库不需要凭据，私人仓库不使用加速地址所以不会走到这里
         std::env::set_var("GIT_TERMINAL_PROMPT", "0");
         tracing::info!("使用 GitHub 加速地址: {}", final_url);
-        let _ = app.emit(
-            "git-install-log",
-            format!(
+        tracing::info!("emit git-install-log: {:?}", format!(
                 "[{}] > 使用 GitHub 加速: {}",
                 chrono::Local::now().format("%H:%M:%S"),
                 final_url
             ),
         );
     } else {
-        let _ = app.emit(
-            "git-install-log",
-            format!(
+        tracing::info!("emit git-install-log: {:?}", format!(
                 "[{}] > 原始地址: {}",
                 chrono::Local::now().format("%H:%M:%S"),
                 url
@@ -1024,7 +1011,7 @@ pub async fn install_extension_git(
 
     // 记录 git 子进程 PID，供程序退出时安全终止
     if let Some(pid) = child.id() {
-        *state.git_child_pid.lock().await = Some(pid);
+        tracing::info!("git_child_pid tracking not available in fnOS mode");
         tracing::info!("git clone 子进程 PID={}", pid);
     }
 
@@ -1038,7 +1025,7 @@ pub async fn install_extension_git(
     tokio::spawn(async move {
         while let Ok(Some(line)) = stdout_reader.next_line().await {
             let now = chrono::Local::now().format("%H:%M:%S").to_string();
-            let _ = app_clone1.emit("git-install-log", format!("[{}] {}", now, line));
+            tracing::info!("emit git-install-log: {:?}", format!("[{}] {}", now, line));
         }
     });
 
@@ -1046,13 +1033,11 @@ pub async fn install_extension_git(
     tokio::spawn(async move {
         while let Ok(Some(line)) = stderr_reader.next_line().await {
             let now = chrono::Local::now().format("%H:%M:%S").to_string();
-            let _ = app_clone2.emit("git-install-log", format!("[{}] {}", now, line));
+            tracing::info!("emit git-install-log: {:?}", format!("[{}] {}", now, line));
         }
     });
 
-    let _ = app.emit(
-        "git-install-log",
-        format!(
+    tracing::info!("emit git-install-log: {:?}", format!(
             "[{}] > 开始克隆仓库...",
             chrono::Local::now().format("%H:%M:%S")
         ),
@@ -1060,12 +1045,10 @@ pub async fn install_extension_git(
     let status = child.wait().await.map_err(|e| e.to_string())?;
 
     // 克隆完成，清除 PID 记录
-    *state.git_child_pid.lock().await = None;
+    tracing::info!("git_child_pid cleanup not available in fnOS mode");
 
     if !status.success() {
-        let _ = app.emit(
-            "git-install-log",
-            format!(
+        tracing::info!("emit git-install-log: {:?}", format!(
                 "[{}] ! 克隆失败，请检查网络或仓库权限。",
                 chrono::Local::now().format("%H:%M:%S")
             ),
@@ -1073,9 +1056,7 @@ pub async fn install_extension_git(
         return Err("Git 克隆失败，请检查日志。".to_string());
     }
 
-    let _ = app.emit(
-        "git-install-log",
-        format!(
+    tracing::info!("emit git-install-log: {:?}", format!(
             "[{}] √ 克隆并安装成功！",
             chrono::Local::now().format("%H:%M:%S")
         ),
@@ -1133,22 +1114,21 @@ fn write_offline_git_skeleton(target_dir: &PathBuf, remote_url: &str) -> Result<
 ///   Ok(true)  = 完整修复（git init + fetch 均成功）
 ///   Ok(false) = 离线保底（无法联网 fetch，已写入最小 .git 结构）
 ///   Err(msg)  = 修复前置条件不满足，彻底失败
-#[tauri::command]
+#[allow(unused)]
 pub async fn repair_extension_git(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, crate::types::InstallState>,
+    app: crate::state::AppHandle,
     id: String,
     scope: String,
     // 扩展所在的完整绝对目录路径（优先使用）。
     // 传入此参数可精确定位，避免因 scope 推算路径不准确的问题。
     dir_path: Option<String>,
 ) -> Result<bool, String> {
-    repair_extension_git_inner(app, state.git_child_pid.clone(), id, scope, dir_path).await
+    repair_extension_git_inner(app, std::sync::Arc::new(tokio::sync::Mutex::new(None)), id, scope, dir_path).await
 }
 
 /// 内部实现，接受 Arc 直接传递（供内部自动修复调用）
 async fn repair_extension_git_inner(
-    app: tauri::AppHandle,
+    app: crate::state::AppHandle,
     git_child_pid: std::sync::Arc<tokio::sync::Mutex<Option<u32>>>,
     id: String,
     scope: String,
@@ -1255,17 +1235,13 @@ async fn repair_extension_git_inner(
     let has_git = git_exe.exists() || git_exe.to_string_lossy() == "git";
 
     // 发送初始化日志
-    let _ = app.emit(
-        "git-install-log",
-        format!(
+    tracing::info!("emit git-install-log: {:?}", format!(
             "[{}] > 正在修复扩展 Git 环境: {}",
             chrono::Local::now().format("%H:%M:%S"),
             id
         ),
     );
-    let _ = app.emit(
-        "git-install-log",
-        format!(
+    tracing::info!("emit git-install-log: {:?}", format!(
             "[{}] > 远程仓库: {}",
             chrono::Local::now().format("%H:%M:%S"),
             final_url
@@ -1319,9 +1295,7 @@ async fn repair_extension_git_inner(
             .await;
 
         // git fetch (depth 1)
-        let _ = app.emit(
-            "git-install-log",
-            format!(
+        tracing::info!("emit git-install-log: {:?}", format!(
                 "[{}] > 正在从远程拉取数据...",
                 chrono::Local::now().format("%H:%M:%S")
             ),
@@ -1351,9 +1325,7 @@ async fn repair_extension_git_inner(
                 match wait_result {
                     Ok(status) if status.success() => {
                         // ✅ 在线修复成功
-                        let _ = app.emit(
-                            "git-install-log",
-                            format!(
+                        tracing::info!("emit git-install-log: {:?}", format!(
                                 "[{}] √ 修复成功！现在该扩展已具备完整 Git 环境。",
                                 chrono::Local::now().format("%H:%M:%S")
                             ),
@@ -1361,18 +1333,14 @@ async fn repair_extension_git_inner(
                         return Ok(true);
                     }
                     Ok(_) => {
-                        let _ = app.emit(
-                            "git-install-log",
-                            format!(
+                        tracing::info!("emit git-install-log: {:?}", format!(
                                 "[{}] ! git fetch 返回错误，尝试离线保底修复...",
                                 chrono::Local::now().format("%H:%M:%S")
                             ),
                         );
                     }
                     Err(e) => {
-                        let _ = app.emit(
-                            "git-install-log",
-                            format!(
+                        tracing::info!("emit git-install-log: {:?}", format!(
                                 "[{}] ! git fetch 执行失败 ({})，尝试离线保底修复...",
                                 chrono::Local::now().format("%H:%M:%S"),
                                 e
@@ -1382,9 +1350,7 @@ async fn repair_extension_git_inner(
                 }
             }
             Err(e) => {
-                let _ = app.emit(
-                    "git-install-log",
-                    format!(
+                tracing::info!("emit git-install-log: {:?}", format!(
                         "[{}] ! 无法启动 git fetch ({})，尝试离线保底修复...",
                         chrono::Local::now().format("%H:%M:%S"),
                         e
@@ -1393,9 +1359,7 @@ async fn repair_extension_git_inner(
             }
         }
     } else {
-        let _ = app.emit(
-            "git-install-log",
-            format!(
+        tracing::info!("emit git-install-log: {:?}", format!(
                 "[{}] ! 未检测到 Git 可执行文件，跳过在线修复，执行离线保底...",
                 chrono::Local::now().format("%H:%M:%S")
             ),
@@ -1403,9 +1367,7 @@ async fn repair_extension_git_inner(
     }
 
     // ── 4-b. 离线保底：手动写最小 .git 结构 ─────────────────────────────────
-    let _ = app.emit(
-        "git-install-log",
-        format!(
+    tracing::info!("emit git-install-log: {:?}", format!(
             "[{}] > 正在写入最小 .git 结构（离线保底）...",
             chrono::Local::now().format("%H:%M:%S")
         ),
@@ -1413,9 +1375,7 @@ async fn repair_extension_git_inner(
 
     // 用原始 url（非加速），保证 remote 记录的是真实仓库地址
     write_offline_git_skeleton(&target_dir, &url).map_err(|e| {
-        let _ = app.emit(
-            "git-install-log",
-            format!(
+        tracing::info!("emit git-install-log: {:?}", format!(
                 "[{}] ✗ 离线保底失败: {}",
                 chrono::Local::now().format("%H:%M:%S"),
                 e
@@ -1424,9 +1384,7 @@ async fn repair_extension_git_inner(
         e
     })?;
 
-    let _ = app.emit(
-        "git-install-log",
-        format!(
+    tracing::info!("emit git-install-log: {:?}", format!(
             "[{}] ~ 离线保底完成。扩展已可被酒馆识别，联网后可正常更新。",
             chrono::Local::now().format("%H:%M:%S")
         ),

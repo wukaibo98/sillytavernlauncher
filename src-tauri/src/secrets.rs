@@ -2,14 +2,14 @@ use std::fs;
 use std::path::PathBuf;
 
 use serde_json::Value;
-use tauri::AppHandle;
+use crate::state::AppHandle;
 
 fn get_secrets_path(app: &AppHandle) -> PathBuf {
     let data_dir = crate::utils::get_st_data_dir(app);
     data_dir.join("default-user").join("secrets.json")
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_secrets(app: AppHandle) -> Result<Value, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -29,7 +29,7 @@ pub async fn read_secrets(app: AppHandle) -> Result<Value, String> {
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn write_secrets(app: AppHandle, secrets: Value) -> Result<(), String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -187,7 +187,7 @@ pub async fn write_secrets(app: AppHandle, secrets: Value) -> Result<(), String>
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn test_api_connection(endpoint: String, api_key: String) -> Result<Value, String> {
     let client = reqwest::Client::new();
     let resp = client
@@ -207,7 +207,7 @@ pub async fn test_api_connection(endpoint: String, api_key: String) -> Result<Va
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn fetch_model_list(endpoint: String, api_key: String) -> Result<Value, String> {
     let url = format!("{}/models", endpoint.trim_end_matches('/'));
     let client = reqwest::Client::new();

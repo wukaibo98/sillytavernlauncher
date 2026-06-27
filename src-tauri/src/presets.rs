@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use crate::state::AppHandle;
 
 // ── 数据结构 ─────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ fn scan_json_files(dir: &PathBuf) -> Result<Vec<PresetFile>, String> {
 
 // ── Tauri Commands: 预设 ─────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_presets(app: AppHandle) -> Result<Vec<PresetFile>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -108,7 +108,7 @@ pub async fn list_presets(app: AppHandle) -> Result<Vec<PresetFile>, String> {
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_preset_file(
     app: AppHandle,
     source_path: String,
@@ -153,7 +153,7 @@ pub async fn import_preset_file(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_preset_file(
     app: AppHandle,
     category: String,
@@ -178,7 +178,7 @@ pub async fn read_preset_file(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn delete_presets(
     app: AppHandle,
     items: Vec<PresetFile>,
@@ -216,7 +216,7 @@ pub async fn delete_presets(
 
 // ── Tauri Commands: 正则 ─────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_regex_scripts(app: AppHandle) -> Result<Vec<RegexFile>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -254,7 +254,7 @@ pub async fn list_regex_scripts(app: AppHandle) -> Result<Vec<RegexFile>, String
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn import_regex_script(
     app: AppHandle,
     source_path: String,
@@ -297,7 +297,7 @@ pub async fn import_regex_script(
     .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn delete_regex_scripts(
     app: AppHandle,
     file_names: Vec<String>,

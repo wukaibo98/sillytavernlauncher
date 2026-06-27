@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tauri::AppHandle;
 
 use crate::types::{ChatFile, ChatGroup, ChatMessage};
+use crate::state::AppHandle;
 
 // ─────────────────────────────────────────────
 // 内部辅助：对话历史根目录
@@ -20,7 +20,7 @@ fn get_chats_dir(app: &AppHandle) -> PathBuf {
 // 返回按角色分组的对话历史列表
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn list_chats(app: AppHandle) -> Result<Vec<ChatGroup>, String> {
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -128,7 +128,7 @@ pub async fn list_chats(app: AppHandle) -> Result<Vec<ChatGroup>, String> {
 // 读取单个 .jsonl 文件，解析并返回消息列表
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn read_chat(
     app: AppHandle,
     char_folder: String,
@@ -228,7 +228,7 @@ pub async fn read_chat(
 // 批量删除对话记录（传入 char_folder + file_name 对）
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn delete_chats(
     app: AppHandle,
     items: Vec<crate::types::ChatDeleteItem>,

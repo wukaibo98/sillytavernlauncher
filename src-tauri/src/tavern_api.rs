@@ -1,6 +1,7 @@
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, COOKIE};
 
 use serde_json::Value;
+use crate::state::AppHandle;
 
 const TAVERN_BASE: &str = "https://deepseektavern.com";
 
@@ -30,7 +31,7 @@ fn auth_headers(session_cookie: &str, user_id: &str) -> HeaderMap {
 // Public endpoints (no auth required)
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_register(
     username: String,
     password: String,
@@ -66,7 +67,7 @@ pub async fn tavern_register(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_login(username: String, password: String) -> Result<Value, String> {
     let body = serde_json::json!({
         "username": username,
@@ -113,7 +114,7 @@ pub async fn tavern_login(username: String, password: String) -> Result<Value, S
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_send_verification_code(email: String) -> Result<Value, String> {
     let encoded = urlencoding(&email);
     let url = format!("{}/api/verification?email={}", TAVERN_BASE, encoded);
@@ -158,7 +159,7 @@ fn urlencoding(s: &str) -> String {
 // Authenticated endpoints (use session cookie + user_id)
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_get_self(session_cookie: String, user_id: String) -> Result<Value, String> {
     let resp = client()
         .get(format!("{}/api/user/self", TAVERN_BASE))
@@ -177,7 +178,7 @@ pub async fn tavern_get_self(session_cookie: String, user_id: String) -> Result<
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_get_tokens(
     session_cookie: String,
     user_id: String,
@@ -205,7 +206,7 @@ pub async fn tavern_get_tokens(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_create_token(
     session_cookie: String,
     user_id: String,
@@ -284,7 +285,7 @@ pub async fn tavern_create_token(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_delete_token(
     session_cookie: String,
     user_id: String,
@@ -308,7 +309,7 @@ pub async fn tavern_delete_token(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_update_token_status(
     session_cookie: String,
     user_id: String,
@@ -339,7 +340,7 @@ pub async fn tavern_update_token_status(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_get_token_by_name(
     session_cookie: String,
     user_id: String,
@@ -368,7 +369,7 @@ pub async fn tavern_get_token_by_name(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_topup(
     session_cookie: String,
     user_id: String,
@@ -399,7 +400,7 @@ pub async fn tavern_topup(
 // Payment endpoints
 // ─────────────────────────────────────────────
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_calc_amount(
     session_cookie: String,
     user_id: String,
@@ -426,7 +427,7 @@ pub async fn tavern_calc_amount(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_create_payment(
     session_cookie: String,
     user_id: String,
@@ -492,7 +493,7 @@ pub async fn tavern_create_payment(
     }
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_get_token_detail(
     session_cookie: String,
     user_id: String,
@@ -519,7 +520,7 @@ pub async fn tavern_get_token_detail(
 
 /// Open deepseektavern.com/console in the system default browser.
 /// Simpler and more reliable than an embedded webview — cookies persist naturally.
-#[tauri::command]
+#[allow(unused)]
 pub async fn open_tavern_key_webview() -> Result<(), String> {
     let url = format!("{}/console", TAVERN_BASE);
     tracing::info!("Opening Tavern Console in browser: {}", url);
@@ -550,7 +551,7 @@ pub async fn open_tavern_key_webview() -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn tavern_get_models(
     session_cookie: String,
     user_id: String,

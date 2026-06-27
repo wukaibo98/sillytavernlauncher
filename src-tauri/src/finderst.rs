@@ -5,14 +5,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use sysinfo::Disks;
-use tauri::{AppHandle, Emitter};
+
 use tokio::time::{sleep, Duration};
 use walkdir::WalkDir as SyncWalkDir;
 
 use crate::config::read_app_config_from_disk;
 use crate::utils::get_config_path;
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ScanProgress {
     pub key: String,
     pub count: usize,
@@ -23,6 +23,7 @@ pub struct ScanProgress {
 }
 
 use crate::types::LocalTavernItem;
+use crate::state::AppHandle;
 
 static SCAN_CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
 static SCAN_RUNNING_FLAG: AtomicBool = AtomicBool::new(false);
@@ -151,13 +152,13 @@ fn should_skip_dir(name: &str) -> bool {
     BLACK_LIST.contains(&name_lower.as_str())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn cancel_scan_local_sillytavern() -> Result<(), String> {
     SCAN_CANCEL_FLAG.store(true, Ordering::SeqCst);
     Ok(())
 }
 
-#[tauri::command]
+#[allow(unused)]
 pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
     if SCAN_RUNNING_FLAG.load(Ordering::SeqCst) {
         return Err("Scan already running".to_string());
@@ -175,7 +176,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
             let mins = seconds / 60;
             let secs = seconds % 60;
             let time_str = format!("{:02}:{:02}", mins, secs);
-            let _ = app_timer.emit("scan-local-sillytavern-timer", time_str);
+            tracing::info!("emit scan-local-sillytavern-timer: {:?}", time_str);
             sleep(Duration::from_secs(1)).await;
             seconds += 1;
         }
@@ -202,9 +203,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
     tracing::info!("扫描排除路径: {}", install_st_dir_prefix);
     tracing::info!("当前工作目录 (cwd): {:?}", std::env::current_dir());
     let install_st_dir_arc = Arc::new(install_st_dir_prefix);
-    let _ = app_clone.emit(
-        "scan-local-sillytavern-progress",
-        ScanProgress {
+    tracing::info!("emit scan-local-sillytavern-progress: {:?}", ScanProgress {
             key: "versions.scanPreparing".to_string(),
             count: 0,
             found: 0,
@@ -318,6 +317,11 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
                                         {
                                             if let Ok(md) = e.metadata() {
                                                 use std::os::windows::fs::MetadataExt;
+// ─── axum wrapper imports ───
+use axum::Json;
+use axum::extract::State;
+
+use crate::state::AppState;
                                                 if md.file_attributes() & 0x2 != 0 {
                                                     return false;
                                                 }
@@ -368,9 +372,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
                                     if let Ok(mut last) = last_emit_ref.lock() {
                                         *last = now;
                                     }
-                                    let _ = app_progress.emit(
-                                        "scan-local-sillytavern-progress",
-                                        ScanProgress {
+                                    tracing::info!("emit scan-local-sillytavern-progress: {:?}", ScanProgress {
                                             key: "versions.scanProgress".to_string(),
                                             count,
                                             found: 0,
@@ -411,9 +413,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
 
             if cancelled {
                 // 被取消
-                let _ = app_clone.emit(
-                    "scan-local-sillytavern-progress",
-                    ScanProgress {
+                tracing::info!("emit scan-local-sillytavern-progress: {:?}", ScanProgress {
                         key: "versions.scanCancelled".to_string(),
                         count: counter.load(Ordering::Relaxed),
                         found: final_results.len(),
@@ -433,9 +433,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
                 true
             } else {
                 // jwalk 正常完成
-                let _ = app_clone.emit(
-                    "scan-local-sillytavern-progress",
-                    ScanProgress {
+                tracing::info!("emit scan-local-sillytavern-progress: {:?}", ScanProgress {
                         key: "versions.scanFinished".to_string(),
                         count: counter.load(Ordering::Relaxed),
                         found: final_results.len(),
@@ -514,9 +512,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
                             if let Ok(mut last) = last_emit.lock() {
                                 *last = now;
                             }
-                            let _ = app_clone.emit(
-                                "scan-local-sillytavern-progress",
-                                ScanProgress {
+                            tracing::info!("emit scan-local-sillytavern-progress: {:?}", ScanProgress {
                                     key: "versions.scanProgress".to_string(),
                                     count,
                                     found: 0,
@@ -544,9 +540,7 @@ pub async fn scan_local_sillytavern(app: AppHandle) -> Result<(), String> {
             } else {
                 "versions.scanFinished"
             };
-            let _ = app_clone.emit(
-                "scan-local-sillytavern-progress",
-                ScanProgress {
+            tracing::info!("emit scan-local-sillytavern-progress: {:?}", ScanProgress {
                     key: key.to_string(),
                     count: counter.load(Ordering::Relaxed),
                     found: walkdir_results.len(),
@@ -617,9 +611,7 @@ fn process_entry(
                 .unwrap_or(false)
     };
 
-    let _ = app.emit(
-        "scan-local-sillytavern-found",
-        LocalTavernItem {
+    tracing::info!("emit scan-local-sillytavern-found: {:?}", LocalTavernItem {
             path: abs_str.clone(),
             version: version_str,
             has_node_modules,

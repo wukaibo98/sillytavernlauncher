@@ -1,0 +1,45 @@
+name: Build for fnOS (Linux x86_64)
+
+on:
+  push:
+    branches: [main, master, release]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend
+        run: |
+          npm install --legacy-peer-deps
+          npx vite build
+
+      - name: Build Rust backend
+        working-directory: src-tauri
+        run: cargo build --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: tavern-deepseek-launcher-linux-x86_64
+          path: src-tauri/target/release/tavern-deepseek-launcher
+          retention-days: 30
