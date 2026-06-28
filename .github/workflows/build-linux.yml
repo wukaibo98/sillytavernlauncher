@@ -1,4 +1,4 @@
-name: Build for fnOS (Linux x86_64)
+name: Build for fnOS
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-x86_64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-x86_64-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -33,13 +33,56 @@ jobs:
           npm install --legacy-peer-deps
           npx vite build
 
-      - name: Build Rust backend
+      - name: Build Rust backend (x86_64)
         working-directory: src-tauri
         run: cargo build --release
 
-      - name: Upload binary
+      - name: Upload binary (x86_64)
         uses: actions/upload-artifact@v4
         with:
           name: tavern-deepseek-launcher-linux-x86_64
+          path: src-tauri/target/release/tavern-deepseek-launcher
+          retention-days: 30
+
+  build-arm64:
+    # ARM64 需要原生 runner 或交叉编译
+    # 方案：用 ubuntu-24.04-arm 原生 ARM runner
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-arm64-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend
+        run: |
+          npm install --legacy-peer-deps
+          npx vite build
+
+      - name: Build Rust backend (ARM64)
+        working-directory: src-tauri
+        run: cargo build --release
+
+      - name: Verify binary
+        run: file src-tauri/target/release/tavern-deepseek-launcher
+
+      - name: Upload binary (ARM64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tavern-deepseek-launcher-linux-arm64
           path: src-tauri/target/release/tavern-deepseek-launcher
           retention-days: 30
