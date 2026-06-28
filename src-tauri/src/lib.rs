@@ -56,26 +56,22 @@ macro_rules! route_cmd {
 // 应用入口
 // ─────────────────────────────────────────────────────────────
 pub async fn run() {
-    // 1. 确定 base_path
-    let base_path = resolve_base_path();
-    let handle = AppHandle::new(base_path.clone());
+    // 1. 确定目录路径
+    //    server_root: 二进制与 dist/ 所在（随升级更新）
+    //    data_root:   持久化数据（TRIM_PKGVAR，升级不删）
+    let (server_root, data_root) = resolve_paths();
+    let handle = AppHandle::new(data_root.clone());
 
     // 2. 确保目录结构
-    if !base_path.exists() {
-        if let Err(e) = std::fs::create_dir_all(&base_path) {
-            eprintln!("创建应用数据目录失败: {e}");
-            std::process::exit(1);
-        }
-    }
-    if let Err(e) = std::env::set_current_dir(&base_path) {
-        eprintln!("设置工作目录失败: {e}");
+    if let Err(e) = std::env::set_current_dir(&server_root) {
+        tracing::warn!("设置工作目录失败: {e}");
     }
     if let Err(e) = handle.ensure_dirs() {
         eprintln!("确保目录结构失败: {e}");
     }
 
     // 3. 初始化日志 & SSE 事件广播
-    init_logger(&base_path.join("data"));
+    init_logger(&handle.data_dir());
     let _ = events::init_events();
     tracing::info!("应用启动（fnOS 移植版）");
 
@@ -84,13 +80,14 @@ pub async fn run() {
 
     // 5. 构建路由
     let app_state = AppState::new(handle);
-    let app = build_router(app_state, &base_path);
+    let app = build_router(app_state, &server_root);
 
     // 6. 启动 HTTP server
-    let port = std::env::var("FNOS_PORT")
+    // fnOS: manifest service_port + cmd/main 通过 PORT 环境变量传入
+    let port = std::env::var("PORT")
         .ok()
         .and_then(|s| s.parse().ok())
-        .unwrap_or(8010u16);
+        .unwrap_or(3000u16);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
     tracing::info!("服务端启动，监听: http://{}", addr);
@@ -98,21 +95,25 @@ pub async fn run() {
     axum::serve(listener, app).await.unwrap();
 }
 
-fn resolve_base_path() -> PathBuf {
-    // fnOS 环境变量优先级最高
-    if let Ok(p) = std::env::var("TRIM_APPDEST") {
-        return PathBuf::from(p);
-    }
-    if let Ok(p) = std::env::var("TRIM_PKGVAR") {
-        return PathBuf::from(p);
+/// 返回 (server_root, data_root)
+/// fnOS 上: (TRIM_APPDEST/server/, TRIM_PKGVAR)
+/// 开发模式: 同目录（当前工作目录）
+fn resolve_paths() -> (PathBuf, PathBuf) {
+    if let (Ok(app_dest), Ok(pkg_var)) = (
+        std::env::var("TRIM_APPDEST"),
+        std::env::var("TRIM_PKGVAR"),
+    ) {
+        // fnOS 生产环境
+        let server_root = PathBuf::from(&app_dest).join("server");
+        let data_root = PathBuf::from(&pkg_var);
+        return (server_root, data_root);
     }
 
-    // 开发模式：当前目录
+    // 开发模式：从可执行文件位置推断
     let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
     let dot_buf = PathBuf::from(".");
-    let exe_dir = exe_path.parent().unwrap_or(&dot_buf);
+    let exe_dir = exe_path.parent().unwrap_or(&dot_buf).to_path_buf();
 
-    // 检查是否在 target/debug 或 target/release 下（开发构建）
     let components: Vec<String> = exe_dir
         .components()
         .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
@@ -126,10 +127,10 @@ fn resolve_base_path() -> PathBuf {
         if cwd.ends_with("src-tauri") {
             cwd.pop();
         }
-        return cwd;
+        return (cwd.clone(), cwd);
     }
 
-    exe_dir.to_path_buf()
+    (exe_dir.clone(), exe_dir)
 }
 
 fn init_bundled_assets(handle: &AppHandle) {
