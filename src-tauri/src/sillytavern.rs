@@ -28,7 +28,7 @@ use crate::events;
 // ─── 内置酒馆路径 ─────────────────────────────────────────────────────────
 
 /// 获取内置酒馆的路径
-/// - 生产模式：app.app_data_dir()/sillytavern
+/// - 生产模式（fnOS）：TRIM_APPDEST/server/sillytavern/
 /// - 开发模式：项目根目录/src-tauri/resources/sillytavern-1.18.0
 #[allow(unused)]
 pub fn get_bundled_tavern_path(app: AppHandle) -> Result<String, String> {
@@ -53,11 +53,17 @@ pub fn get_bundled_tavern_path(app: AppHandle) -> Result<String, String> {
         }
     }
     
-    // 生产模式：从 Tauri resource_dir 读取
-    let resource_dir = app.app_data_dir();
-    let bundled = resource_dir.join("sillytavern");
-    if bundled.exists() {
-        return Ok(bundled.to_string_lossy().to_string());
+    // 生产模式（fnOS）：SillyTavern 源码随安装包放在 TRIM_APPDEST/server/sillytavern/
+    let st_install_dir = std::env::var("TRIM_APPDEST")
+        .map(|p| std::path::PathBuf::from(&p).join("server").join("sillytavern"))
+        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    if st_install_dir.exists() && st_install_dir.join("server.js").exists() {
+        return Ok(st_install_dir.to_string_lossy().to_string());
+    }
+    // fallback: 数据目录
+    let data_dir = app.data_dir().join("sillytavern");
+    if data_dir.exists() {
+        return Ok(data_dir.to_string_lossy().to_string());
     }
     
     Err("未找到内置酒馆".to_string())
